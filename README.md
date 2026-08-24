@@ -4,7 +4,7 @@ A synthetic dataset generator and analytics framework for detecting coordinated 
 
 Built for the **Razorpay Hackathon**.
 
-## Project Structure
+## Repo Project Structure
 
 ```
 GenomeOfFraud/
@@ -22,6 +22,19 @@ GenomeOfFraud/
 ├── requirements.txt       # Python dependencies
 └── README.md              # Project documentation
 ```
+
+## Overall Project Structure
+[██████████] Concept / architecture       
+[██████████] Fraud scenario design        
+[██████████] Synthetic generator          
+[██████████] Graph intelligence            
+[██████████] Gene extraction
+[██████████] Baseline model
+[██████████] FraudGenome model
+[██████████] Genome drift
+[██████████] SHAP
+[██████████] Decision layer
+[██████████] Streamlit
 
 ## Dataset Overview
 
