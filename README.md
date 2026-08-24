@@ -24,16 +24,27 @@ GenomeOfFraud/
 ```
 
 ## Overall Project Structure
-[██████████] Concept / architecture       
-[██████████] Fraud scenario design        
-[██████████] Synthetic generator          
-[██████████] Graph intelligence            
+
+[██████████] Concept / architecture   
+
+[██████████] Fraud scenario design  
+
+[██████████] Synthetic generator  
+
+[██████████] Graph intelligence  
+
 [██████████] Gene extraction
+
 [██████████] Baseline model
+
 [██████████] FraudGenome model
+
 [██████████] Genome drift
+
 [██████████] SHAP
+
 [██████████] Decision layer
+
 [██████████] Streamlit
 
 ## Dataset Overview
