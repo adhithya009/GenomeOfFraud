@@ -131,7 +131,11 @@ def inject_coordinated_fraud(transactions_df, accounts_df, merchants_df, devices
             transactions_df = pd.concat([transactions_df, pd.DataFrame([transaction])], ignore_index=True)
     return transactions_df
 
-def main(output_dir="data"):
+def main(output_dir=None):
+    if output_dir is None:
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        output_dir = os.path.join(project_root, "data")
+
     os.makedirs(output_dir, exist_ok=True)
     accounts_df, merchants_df, devices_df, ips_df = generate_entities()
     accounts_df.to_csv(os.path.join(output_dir, "accounts.csv"), index=False)
@@ -155,3 +159,4 @@ def main(output_dir="data"):
 
 if __name__ == "__main__":
     main()
+

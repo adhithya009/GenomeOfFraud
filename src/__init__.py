@@ -1,0 +1,1 @@
+"""GenomeOfFraud package initialization."""
