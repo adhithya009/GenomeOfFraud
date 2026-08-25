@@ -1,0 +1,45 @@
+{
+  "strategy": "Account-Level Stratified Group Split (70/15/15)",
+  "total_rows": 6000,
+  "splits": {
+    "train": {
+      "rows": 4200,
+      "row_pct": 70.0,
+      "unique_accounts": 1400,
+      "fraud_rows": 14,
+      "fraud_pct": 0.3333,
+      "fraud_clusters": [
+        "cluster_001"
+      ],
+      "fraud_cluster_count": 1
+    },
+    "val": {
+      "rows": 900,
+      "row_pct": 15.0,
+      "unique_accounts": 300,
+      "fraud_rows": 4,
+      "fraud_pct": 0.4444,
+      "fraud_clusters": [
+        "cluster_001"
+      ],
+      "fraud_cluster_count": 1
+    },
+    "test": {
+      "rows": 900,
+      "row_pct": 15.0,
+      "unique_accounts": 300,
+      "fraud_rows": 2,
+      "fraud_pct": 0.2222,
+      "fraud_clusters": [
+        "cluster_001"
+      ],
+      "fraud_cluster_count": 1
+    }
+  },
+  "overlap_verification": {
+    "train_val_account_overlap": 0,
+    "train_test_account_overlap": 0,
+    "val_test_account_overlap": 0,
+    "leakage_safe": true
+  }
+}
