@@ -1,5 +1,5 @@
 phase,community_id,size,fraud_account_count,fraud_ratio,density,unique_devices,unique_ips,unique_merchants,shared_device_count,shared_ip_count,shared_device_ratio,shared_ip_ratio,avg_proj_degree
-T2,0,1939,10,0.0052,0.0272,498,960,200,488,822,0.9799,0.8562,52.8
+T2,0,1939,10,0.0052,0.0272,498,961,200,488,823,0.9799,0.8564,52.68
 T2,1,1,0,0.0,0.0,0,0,0,0,0,0.0,0.0,0.0
 T2,2,1,0,0.0,0.0,0,0,0,0,0,0.0,0.0,0.0
 T2,3,1,0,0.0,0.0,0,0,0,0,0,0.0,0.0,0.0

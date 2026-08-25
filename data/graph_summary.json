@@ -1,6 +1,6 @@
 {
   "num_nodes": 3700,
-  "num_edges": 16537,
+  "num_edges": 16514,
   "nodes_by_type": {
     "account": 2000,
     "device": 500,
@@ -8,10 +8,10 @@
     "merchant": 200
   },
   "edges_by_type": {
-    "account_device": 4668,
+    "account_device": 4647,
     "account_ip": 4967,
-    "account_merchant": 6902
+    "account_merchant": 6900
   },
-  "density": 0.002417,
+  "density": 0.002413,
   "num_connected_components": 10
 }

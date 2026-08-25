@@ -262,85 +262,99 @@ def extract_phase_subgraphs(merged_df, entity_dfs):
 
 
 def verify_fraud_ring_topology(G_t2, G_t3, merged_df):
-    """Verify that the synthetic fraud ring produces the exact intended topology in T2 and T3.
+    """Verify that fraud ring graph topology matches the expected synthetic design.
 
-    T2 Fraud Cluster Expected:
-      - 10 accounts
-      - 3 shared devices
-      - 2 shared IPs
-      - 1 shared merchant
+    T2 Coordinated Fraud Topology per cluster (5 clusters):
+      - 2 accounts per cluster
+      - 1 shared device per cluster (5 devices total across graph)
+      - 2 shared IPs per cluster (10 IPs total across graph)
+      - 1 shared merchant per cluster (5 merchants total across graph)
 
-    T3 Fraud Cluster Expected:
-      - 10 accounts
-      - 10 mutated devices (1 per account)
-      - 2 shared IPs (retained)
-      - 1 shared merchant (retained)
+    T3 Mutated Fraud Topology per cluster:
+      - 2 accounts per cluster
+      - 2 mutated devices per cluster (1 per account = 10 devices total across graph)
+      - 2 retained IPs per cluster (10 IPs total across graph)
+      - 1 retained merchant per cluster (5 merchants total across graph)
     """
-    print("\n--- Verifying Fraud Ring Graph Topology (T2 vs T3) ---")
+    print("\n--- Verifying Independent Fraud Ring Graph Topology (T2 vs T3) ---")
 
     t2_fraud_tx = merged_df[merged_df["scenario"] == "t2_coordinated_fraud"]
+    fraud_clusters = sorted([c for c in t2_fraud_tx["fraud_cluster_id"].unique() if c != "none"])
 
-    fraud_account_ids = sorted(t2_fraud_tx["account_id"].unique())
-    fraud_account_nodes = [f"account:{aid}" for aid in fraud_account_ids]
+    # Analyze T2 & T3 Fraud Cluster Topology overall and per cluster
+    t2_all_devices, t2_all_ips, t2_all_merchants = set(), set(), set()
+    t3_all_devices, t3_all_ips, t3_all_merchants = set(), set(), set()
 
-    print(f"Target Fraud Ring Accounts ({len(fraud_account_nodes)} accounts):")
+    for c_id in fraud_clusters:
+        c_tx_t2 = merged_df[(merged_df["scenario"] == "t2_coordinated_fraud") & (merged_df["fraud_cluster_id"] == c_id)]
+        c_accts = [f"account:{aid}" for aid in c_tx_t2["account_id"].unique()]
 
-    # Analyze T2 Fraud Cluster Topology (filtering for edges carrying fraud activity)
-    t2_fraud_devices, t2_fraud_ips, t2_fraud_merchants = set(), set(), set()
-    for acct_node in fraud_account_nodes:
-        if G_t2.has_node(acct_node):
-            for neighbor in G_t2.neighbors(acct_node):
-                edge_data = G_t2.get_edge_data(acct_node, neighbor)
-                if edge_data.get("is_fraud"):
-                    ntype = G_t2.nodes[neighbor].get("node_type")
-                    if ntype == "device":
-                        t2_fraud_devices.add(neighbor)
-                    elif ntype == "ip":
-                        t2_fraud_ips.add(neighbor)
-                    elif ntype == "merchant":
-                        t2_fraud_merchants.add(neighbor)
+        c_t2_devs, c_t2_ips, c_t2_merch = set(), set(), set()
+        for a_node in c_accts:
+            if G_t2.has_node(a_node):
+                for neighbor in G_t2.neighbors(a_node):
+                    if G_t2[a_node][neighbor].get("is_fraud"):
+                        ntype = G_t2.nodes[neighbor].get("node_type")
+                        if ntype == "device":
+                            c_t2_devs.add(neighbor)
+                        elif ntype == "ip":
+                            c_t2_ips.add(neighbor)
+                        elif ntype == "merchant":
+                            c_t2_merch.add(neighbor)
 
-    print("\n[Phase T2 Coordinated Fraud Cluster Subgraph Topology]")
-    print(f"  - Fraud Accounts: {len(fraud_account_nodes)}")
-    print(f"  - Connected Shared Devices: {len(t2_fraud_devices)} (Expected: 3)")
-    print(f"  - Connected Shared IPs:     {len(t2_fraud_ips)} (Expected: 2)")
-    print(f"  - Connected Shared Merchant:{len(t2_fraud_merchants)} (Expected: 1)")
+        c_t3_devs, c_t3_ips, c_t3_merch = set(), set(), set()
+        for a_node in c_accts:
+            if G_t3.has_node(a_node):
+                for neighbor in G_t3.neighbors(a_node):
+                    if G_t3[a_node][neighbor].get("is_fraud"):
+                        ntype = G_t3.nodes[neighbor].get("node_type")
+                        if ntype == "device":
+                            c_t3_devs.add(neighbor)
+                        elif ntype == "ip":
+                            c_t3_ips.add(neighbor)
+                        elif ntype == "merchant":
+                            c_t3_merch.add(neighbor)
 
-    assert len(fraud_account_nodes) == 10, f"Expected 10 fraud accounts, got {len(fraud_account_nodes)}"
-    assert len(t2_fraud_devices) == 3, f"T2 fraud cluster failed: expected 3 shared devices, got {len(t2_fraud_devices)}"
-    assert len(t2_fraud_ips) == 2, f"T2 fraud cluster failed: expected 2 shared IPs, got {len(t2_fraud_ips)}"
-    assert len(t2_fraud_merchants) == 1, f"T2 fraud cluster failed: expected 1 merchant, got {len(t2_fraud_merchants)}"
+        assert len(c_accts) == 2, f"Cluster {c_id} expected 2 accounts, got {len(c_accts)}"
+        assert len(c_t2_devs) == 1, f"Cluster {c_id} T2 expected 1 shared device, got {len(c_t2_devs)}"
+        assert len(c_t2_ips) == 2, f"Cluster {c_id} T2 expected 2 shared IPs, got {len(c_t2_ips)}"
+        assert len(c_t2_merch) == 1, f"Cluster {c_id} T2 expected 1 merchant, got {len(c_t2_merch)}"
+
+        assert len(c_t3_devs) == 2, f"Cluster {c_id} T3 expected 2 mutated devices, got {len(c_t3_devs)}"
+        assert len(c_t3_ips) == 2, f"Cluster {c_id} T3 expected 2 retained IPs, got {len(c_t3_ips)}"
+        assert len(c_t3_merch) == 1, f"Cluster {c_id} T3 expected 1 retained merchant, got {len(c_t3_merch)}"
+        assert c_t2_merch == c_t3_merch, f"Cluster {c_id} merchant mismatch T2 vs T3"
+        assert c_t2_ips == c_t3_ips, f"Cluster {c_id} IP mismatch T2 vs T3"
+
+        t2_all_devices.update(c_t2_devs)
+        t2_all_ips.update(c_t2_ips)
+        t2_all_merchants.update(c_t2_merch)
+
+        t3_all_devices.update(c_t3_devs)
+        t3_all_ips.update(c_t3_ips)
+        t3_all_merchants.update(c_t3_merch)
+
+    print("\n[Overall Phase T2 Coordinated Fraud Topology across 5 Clusters]")
+    print(f"  - Total Fraud Accounts: 10 (2 per cluster)")
+    print(f"  - Total Shared Devices: {len(t2_all_devices)} (1 per cluster = 5 expected)")
+    print(f"  - Total Shared IPs:     {len(t2_all_ips)} (2 per cluster = 10 expected)")
+    print(f"  - Total Target Merchants:{len(t2_all_merchants)} (1 per cluster = 5 expected)")
+    assert len(t2_all_devices) == 5, f"Expected 5 T2 devices, got {len(t2_all_devices)}"
+    assert len(t2_all_ips) == 10, f"Expected 10 T2 IPs, got {len(t2_all_ips)}"
+    assert len(t2_all_merchants) == 5, f"Expected 5 T2 merchants, got {len(t2_all_merchants)}"
     print("✓ T2 Coordinated Fraud Cluster Topology Proof PASSED!")
 
-    # Analyze T3 Fraud Cluster Topology (filtering for edges carrying fraud activity)
-    t3_fraud_devices, t3_fraud_ips, t3_fraud_merchants = set(), set(), set()
-    for acct_node in fraud_account_nodes:
-        if G_t3.has_node(acct_node):
-            for neighbor in G_t3.neighbors(acct_node):
-                edge_data = G_t3.get_edge_data(acct_node, neighbor)
-                if edge_data.get("is_fraud"):
-                    ntype = G_t3.nodes[neighbor].get("node_type")
-                    if ntype == "device":
-                        t3_fraud_devices.add(neighbor)
-                    elif ntype == "ip":
-                        t3_fraud_ips.add(neighbor)
-                    elif ntype == "merchant":
-                        t3_fraud_merchants.add(neighbor)
-
-    print("\n[Phase T3 Mutated Fraud Cluster Subgraph Topology]")
-    print(f"  - Fraud Accounts: {len(fraud_account_nodes)}")
-    print(f"  - Connected Mutated Devices: {len(t3_fraud_devices)} (Expected: 10)")
-    print(f"  - Connected Retained IPs:    {len(t3_fraud_ips)} (Expected: 2)")
-    print(f"  - Connected Retained Merchant:{len(t3_fraud_merchants)} (Expected: 1)")
-
-    assert len(t3_fraud_devices) == 10, f"T3 fraud cluster failed: expected 10 distinct devices, got {len(t3_fraud_devices)}"
-    assert len(t3_fraud_ips) == 2, f"T3 fraud cluster failed: expected 2 shared IPs, got {len(t3_fraud_ips)}"
-    assert len(t3_fraud_merchants) == 1, f"T3 fraud cluster failed: expected 1 merchant, got {len(t3_fraud_merchants)}"
-    assert t2_fraud_merchants == t3_fraud_merchants, "T2 and T3 fraud merchants do not match!"
-    assert t2_fraud_ips == t3_fraud_ips, "T2 and T3 fraud IPs do not match!"
+    print("\n[Overall Phase T3 Mutated Fraud Topology across 5 Clusters]")
+    print(f"  - Total Fraud Accounts: 10 (2 per cluster)")
+    print(f"  - Total Mutated Devices:{len(t3_all_devices)} (1 per account = 10 expected)")
+    print(f"  - Total Retained IPs:   {len(t3_all_ips)} (2 per cluster = 10 expected)")
+    print(f"  - Total Retained Merchants:{len(t3_all_merchants)} (1 per cluster = 5 expected)")
+    assert len(t3_all_devices) == 10, f"Expected 10 T3 devices, got {len(t3_all_devices)}"
+    assert len(t3_all_ips) == 10, f"Expected 10 T3 IPs, got {len(t3_all_ips)}"
+    assert len(t3_all_merchants) == 5, f"Expected 5 T3 merchants, got {len(t3_all_merchants)}"
     print("✓ T3 Mutated Fraud Cluster Topology Proof PASSED!")
 
-    print("\n--- All Topological Verification Proofs PASSED Successfully! ---\n")
+    print("\n--- All Independent Fraud Ring Topological Verification Proofs PASSED! ---\n")
 
 
 def prepare_graph_for_saving(G):

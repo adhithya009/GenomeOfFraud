@@ -155,114 +155,115 @@ def generate_normal_transactions(accounts_df, merchants_df, devices_df, ips_df):
 def inject_evolving_fraud_ring(
     transactions, labels, accounts_df, merchants_df, devices_df, ips_df
 ):
-    """Inject persistent fraud rings evolving from T2 (coordinated) to T3 (mutated).
+    """Inject 5 INDEPENDENT persistent fraud rings evolving from T2 (coordinated) to T3 (mutated).
 
-    Structure:
-    - 1 shared merchant across T2 & T3
-    - 10 accounts divided into 5 distinct fraud clusters (cluster_001 to cluster_005, 2 accounts per cluster)
-    - 2 shared IPs across T2 & T3
-    - T2: 3 shared devices across fraud accounts + elevated velocity/amounts
-    - T3: 10 distinct devices (1 per account) + normal velocity/amounts
+    Each cluster k in {1..5} has its OWN 100% independent infrastructure:
+    - 1 distinct merchant per cluster (5 merchants total, zero cross-cluster merchant sharing)
+    - 2 distinct accounts per cluster (10 accounts total, zero cross-cluster account sharing)
+    - 2 distinct shared IPs per cluster (10 IPs total, zero cross-cluster IP sharing)
+    - T2: 1 shared device per cluster in T2 (5 T2 devices total, zero cross-cluster device sharing)
+    - T3: 2 distinct devices per cluster in T3 (1 per account = 10 T3 devices total, zero cross-cluster device sharing)
     """
     t2_start, t2_end = PHASES["T2"]
     t3_start, t3_end = PHASES["T3"]
 
-    # Select 1 fraud merchant
-    fraud_merchant_id = merchants_df.sample(1, random_state=42).iloc[0]["merchant_id"]
+    NUM_CLUSTERS = 5
+    ACCTS_PER_CLUSTER = 2
 
-    # Select 10 fraud accounts from accounts_df
-    fraud_account_indices = accounts_df.sample(10, random_state=42).index
+    # Select 10 fraud accounts total
+    fraud_account_indices = accounts_df.sample(NUM_CLUSTERS * ACCTS_PER_CLUSTER, random_state=42).index
     fraud_accounts = accounts_df.loc[fraud_account_indices, "account_id"].tolist()
 
-    # Assign 5 distinct fraud clusters (2 accounts per cluster)
-    fraud_cluster_map = {}
-    for i, acct_id in enumerate(fraud_accounts):
-        cluster_num = (i // 2) + 1
-        fraud_cluster_map[acct_id] = f"cluster_{cluster_num:03d}"
+    # Select 5 distinct merchants (1 per cluster)
+    fraud_merchants = merchants_df.sample(NUM_CLUSTERS, random_state=42)["merchant_id"].tolist()
 
-    # Shared IPs (2 IPs)
-    shared_ips = ips_df.sample(2, random_state=42)["ip_id"].tolist()
+    # Select 10 distinct IPs (2 per cluster)
+    fraud_ips = ips_df.sample(NUM_CLUSTERS * 2, random_state=42)["ip_id"].tolist()
 
-    # T2 Shared Devices (3 devices)
-    t2_devices = devices_df.sample(3, random_state=42)["device_id"].tolist()
+    # Select 5 distinct T2 shared devices (1 per cluster)
+    t2_devices = devices_df.sample(NUM_CLUSTERS, random_state=42)["device_id"].tolist()
 
-    # T3 Mutated Devices (10 distinct devices, 1 per fraud account)
+    # Select 10 distinct T3 mutated devices (1 per account)
     available_devices = devices_df[~devices_df["device_id"].isin(t2_devices)]
-    t3_devices = available_devices.sample(10, random_state=43)["device_id"].tolist()
-    account_t3_device_map = dict(zip(fraud_accounts, t3_devices))
+    t3_devices = available_devices.sample(NUM_CLUSTERS * ACCTS_PER_CLUSTER, random_state=43)["device_id"].tolist()
 
     fraud_family = "coordinated_ring"
 
-    # Inject T2 Coordinated Fraud (elevated velocity + distinct amounts + shared devices/IPs/merchant)
-    for acct_id in fraud_accounts:
-        cluster_id = fraud_cluster_map[acct_id]
-        num_tx = random.randint(10, 20)  # Elevated activity in T2
-        for _ in range(num_tx):
-            tx_id = str(uuid.uuid4())
-            ts = random_date(t2_start, t2_end)
-            device_id = random.choice(t2_devices)
-            ip_id = random.choice(shared_ips)
+    for c_idx in range(NUM_CLUSTERS):
+        cluster_id = f"cluster_{c_idx + 1:03d}"
 
-            tx = {
-                "transaction_id": tx_id,
-                "timestamp": ts.isoformat(),
-                "account_id": acct_id,
-                "merchant_id": fraud_merchant_id,
-                "device_id": device_id,
-                "ip_id": ip_id,
-                "amount": round(random.uniform(500, 3000), 2),
-            }
-            lbl = {
-                "transaction_id": tx_id,
-                "scenario": "t2_coordinated_fraud",
-                "is_fraud": True,
-                "fraud_family": fraud_family,
-                "fraud_cluster_id": cluster_id,
-            }
-            transactions.append(tx)
-            labels.append(lbl)
+        # Disjoint infrastructure assigned to cluster c_idx
+        c_accounts = fraud_accounts[c_idx * ACCTS_PER_CLUSTER : (c_idx + 1) * ACCTS_PER_CLUSTER]
+        c_merchant = fraud_merchants[c_idx]
+        c_ips = fraud_ips[c_idx * 2 : (c_idx + 1) * 2]
+        c_t2_device = t2_devices[c_idx]
+        c_t3_devices = t3_devices[c_idx * ACCTS_PER_CLUSTER : (c_idx + 1) * ACCTS_PER_CLUSTER]
 
-    # Inject T3 Mutated Fraud (camouflaged surface behavior + 10 distinct devices)
-    for acct_id in fraud_accounts:
-        cluster_id = fraud_cluster_map[acct_id]
-        num_tx = random.randint(2, 5)  # Normal transaction count in T3 (~0.3 tx/day)
-        device_id = account_t3_device_map[acct_id]  # Unique device for this account in T3
-        for _ in range(num_tx):
-            tx_id = str(uuid.uuid4())
-            ts = random_date(t3_start, t3_end)
-            ip_id = random.choice(shared_ips)  # Retain same 2 shared IPs
+        # Inject T2 Coordinated Fraud (elevated velocity + shared cluster T2 device + shared cluster IPs + shared cluster merchant)
+        for acct_id in c_accounts:
+            num_tx = random.randint(10, 20)  # Elevated activity in T2
+            for _ in range(num_tx):
+                tx_id = str(uuid.uuid4())
+                ts = random_date(t2_start, t2_end)
+                ip_id = random.choice(c_ips)
 
-            tx = {
-                "transaction_id": tx_id,
-                "timestamp": ts.isoformat(),
-                "account_id": acct_id,
-                "merchant_id": fraud_merchant_id,
-                "device_id": device_id,
-                "ip_id": ip_id,
-                "amount": round(random.uniform(1, 5000), 2),  # Uniform matching normal population
-            }
-            lbl = {
-                "transaction_id": tx_id,
-                "scenario": "t3_mutated_fraud",
-                "is_fraud": True,
-                "fraud_family": fraud_family,
-                "fraud_cluster_id": cluster_id,
-            }
-            transactions.append(tx)
-            labels.append(lbl)
+                tx = {
+                    "transaction_id": tx_id,
+                    "timestamp": ts.isoformat(),
+                    "account_id": acct_id,
+                    "merchant_id": c_merchant,
+                    "device_id": c_t2_device,
+                    "ip_id": ip_id,
+                    "amount": round(random.uniform(500, 3000), 2),
+                }
+                lbl = {
+                    "transaction_id": tx_id,
+                    "scenario": "t2_coordinated_fraud",
+                    "is_fraud": True,
+                    "fraud_family": fraud_family,
+                    "fraud_cluster_id": cluster_id,
+                }
+                transactions.append(tx)
+                labels.append(lbl)
+
+        # Inject T3 Mutated Fraud (camouflaged surface velocity + unique T3 device per account + retained cluster IPs & merchant)
+        for a_idx, acct_id in enumerate(c_accounts):
+            num_tx = random.randint(2, 5)  # Normal transaction count in T3 (~0.3 tx/day)
+            c_t3_dev = c_t3_devices[a_idx]
+            for _ in range(num_tx):
+                tx_id = str(uuid.uuid4())
+                ts = random_date(t3_start, t3_end)
+                ip_id = random.choice(c_ips)
+
+                tx = {
+                    "transaction_id": tx_id,
+                    "timestamp": ts.isoformat(),
+                    "account_id": acct_id,
+                    "merchant_id": c_merchant,
+                    "device_id": c_t3_dev,
+                    "ip_id": ip_id,
+                    "amount": round(random.uniform(1, 5000), 2),
+                }
+                lbl = {
+                    "transaction_id": tx_id,
+                    "scenario": "t3_mutated_fraud",
+                    "is_fraud": True,
+                    "fraud_family": fraud_family,
+                    "fraud_cluster_id": cluster_id,
+                }
+                transactions.append(tx)
+                labels.append(lbl)
 
     return transactions, labels, accounts_df
 
 
 def validate_dataset(transactions_df, labels_df, accounts_df, merchants_df, devices_df, ips_df):
-    """Run automated checks to verify dataset integrity and experimental topology constraints."""
+    """Run automated checks to verify dataset integrity, topology constraints, and cluster independence."""
     print("\n--- Running Dataset Validation Checks ---")
     merged = pd.merge(transactions_df, labels_df, on="transaction_id")
     merged["dt"] = pd.to_datetime(merged["timestamp"])
 
     t1_start, t1_end = PHASES["T1"]
-    t2_start, t2_end = PHASES["T2"]
-    t3_start, t3_end = PHASES["T3"]
 
     # 1. T1 contains no injected fraud
     t1_tx = merged[(merged["dt"] >= t1_start) & (merged["dt"] < t1_end)]
@@ -274,56 +275,67 @@ def validate_dataset(transactions_df, labels_df, accounts_df, merchants_df, devi
     ), "Validation Failed: T1 contains non-baseline_normal scenarios!"
     print("✓ Check 1 Passed: T1 is 100% baseline normal (0% fraud).")
 
-    # 2. T2 contains coordinated fraud
+    # 2. Fraud scenarios exist
     t2_fraud = merged[merged["scenario"] == "t2_coordinated_fraud"]
-    assert len(t2_fraud) > 0, "Validation Failed: T2 contains no coordinated fraud!"
-    print(f"✓ Check 2 Passed: T2 contains {len(t2_fraud)} coordinated fraud transactions.")
-
-    # 3. T3 contains mutated fraud
     t3_fraud = merged[merged["scenario"] == "t3_mutated_fraud"]
+    assert len(t2_fraud) > 0, "Validation Failed: T2 contains no coordinated fraud!"
     assert len(t3_fraud) > 0, "Validation Failed: T3 contains no mutated fraud!"
-    print(f"✓ Check 3 Passed: T3 contains {len(t3_fraud)} mutated fraud transactions.")
+    print(f"✓ Check 2 Passed: T2 contains {len(t2_fraud)} tx, T3 contains {len(t3_fraud)} tx.")
 
-    # 4. T2 fraud uses <= 3 devices
-    t2_devices_count = t2_fraud["device_id"].nunique()
-    assert (
-        t2_devices_count <= 3
-    ), f"Validation Failed: T2 fraud uses {t2_devices_count} devices (expected <= 3)!"
-    print(f"✓ Check 4 Passed: T2 fraud uses {t2_devices_count} shared devices (<= 3).")
-
-    # 5. T3 fraud uses 10 devices (1 per account)
-    t3_devices_count = t3_fraud["device_id"].nunique()
-    assert (
-        t3_devices_count == 10
-    ), f"Validation Failed: T3 fraud uses {t3_devices_count} devices (expected 10)!"
-    print(f"✓ Check 5 Passed: T3 fraud uses {t3_devices_count} mutated devices (10 distinct).")
-
-    # 6. T2/T3 share merchant
-    t2_merchant = t2_fraud["merchant_id"].unique()
-    t3_merchant = t3_fraud["merchant_id"].unique()
-    assert (
-        len(t2_merchant) == 1 and len(t3_merchant) == 1 and t2_merchant[0] == t3_merchant[0]
-    ), "Validation Failed: T2 and T3 fraud do not share the exact same merchant!"
-    print("✓ Check 6 Passed: T2 and T3 fraud share the exact same merchant.")
-
-    # 7. T2/T3 share fraud accounts
-    t2_accounts = set(t2_fraud["account_id"])
-    t3_accounts = set(t3_fraud["account_id"])
-    assert (
-        t2_accounts == t3_accounts and len(t2_accounts) == 10
-    ), "Validation Failed: T2 and T3 fraud accounts mismatch!"
-    print("✓ Check 7 Passed: T2 and T3 fraud share the exact same 10 accounts.")
-
-    # 8. Check 5 distinct fraud clusters
-    unique_clusters = set(merged[merged["is_fraud"]]["fraud_cluster_id"].unique())
+    # 3. Exactly 5 distinct fraud clusters
+    fraud_df = merged[merged["is_fraud"]]
+    unique_clusters = sorted([c for c in fraud_df["fraud_cluster_id"].unique() if c != "none"])
     assert len(unique_clusters) == 5, f"Expected 5 fraud clusters, found {len(unique_clusters)}"
-    print(f"✓ Check 8 Passed: Found {len(unique_clusters)} distinct fraud clusters: {sorted(list(unique_clusters))}.")
+    print(f"✓ Check 3 Passed: 5 distinct fraud clusters present: {unique_clusters}.")
 
-    print("--- All Topology Checks Passed Successfully! ---\n")
+    # 4. Audit Cluster Independence (Zero shared infrastructure across clusters)
+    cluster_accounts = fraud_df.groupby("fraud_cluster_id")["account_id"].unique().to_dict()
+    cluster_merchants = fraud_df.groupby("fraud_cluster_id")["merchant_id"].unique().to_dict()
+    cluster_ips = fraud_df.groupby("fraud_cluster_id")["ip_id"].unique().to_dict()
+    cluster_t2_devs = t2_fraud.groupby("fraud_cluster_id")["device_id"].unique().to_dict()
+    cluster_t3_devs = t3_fraud.groupby("fraud_cluster_id")["device_id"].unique().to_dict()
+
+    for i in range(len(unique_clusters)):
+        for j in range(i + 1, len(unique_clusters)):
+            c1, c2 = unique_clusters[i], unique_clusters[j]
+            acct_overlap = set(cluster_accounts[c1]).intersection(set(cluster_accounts[c2]))
+            merch_overlap = set(cluster_merchants[c1]).intersection(set(cluster_merchants[c2]))
+            ip_overlap = set(cluster_ips[c1]).intersection(set(cluster_ips[c2]))
+
+            assert len(acct_overlap) == 0, f"Account overlap between {c1} and {c2}: {acct_overlap}"
+            assert len(merch_overlap) == 0, f"Merchant overlap between {c1} and {c2}: {merch_overlap}"
+            assert len(ip_overlap) == 0, f"IP overlap between {c1} and {c2}: {ip_overlap}"
+
+    print("✓ Check 4 Passed: 100% Cluster Independence verified (zero shared accounts, merchants, or IPs between clusters).")
+
+    # 5. Per-cluster internal topology verification (T2 sharing -> T3 mutation)
+    for c_id in unique_clusters:
+        c_t2 = t2_fraud[t2_fraud["fraud_cluster_id"] == c_id]
+        c_t3 = t3_fraud[t3_fraud["fraud_cluster_id"] == c_id]
+
+        c_t2_accts = c_t2["account_id"].nunique()
+        c_t3_accts = c_t3["account_id"].nunique()
+        assert c_t2_accts == 2 and c_t3_accts == 2, f"Cluster {c_id} expected 2 accounts per phase"
+
+        c_t2_devs = c_t2["device_id"].nunique()
+        c_t3_devs = c_t3["device_id"].nunique()
+        assert c_t2_devs == 1, f"Cluster {c_id} T2 expected 1 shared device, got {c_t2_devs}"
+        assert c_t3_devs == 2, f"Cluster {c_id} T3 expected 2 distinct devices, got {c_t3_devs}"
+
+        c_t2_merch = set(c_t2["merchant_id"])
+        c_t3_merch = set(c_t3["merchant_id"])
+        assert len(c_t2_merch) == 1 and c_t2_merch == c_t3_merch, f"Cluster {c_id} merchant mismatch"
+
+        c_t2_ips = set(c_t2["ip_id"])
+        c_t3_ips = set(c_t3["ip_id"])
+        assert len(c_t2_ips) == 2 and c_t2_ips == c_t3_ips, f"Cluster {c_id} IP mismatch"
+
+    print("✓ Check 5 Passed: All 5 clusters independently satisfy T2 sharing and T3 mutation topology.")
+    print("--- All Validation Checks Passed Successfully! ---\n")
 
 
 def print_validation_summary(transactions_df, labels_df, accounts_df):
-    """Print statistical comparison validating that T3 fraud surface behavior overlaps with normal behavior."""
+    """Print statistical summary table comparing normal and fraud populations."""
     merged = pd.merge(transactions_df, labels_df, on="transaction_id")
     merged["dt"] = pd.to_datetime(merged["timestamp"])
     accounts_df["created_at_dt"] = pd.to_datetime(accounts_df["created_at"])
