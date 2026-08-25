@@ -80,38 +80,38 @@
   },
   "metrics": {
     "baseline_t3": {
-      "pr_auc": 1.0,
-      "roc_auc": 1.0,
-      "precision": 0.8333,
-      "recall": 1.0,
-      "f1": 0.9091,
+      "pr_auc": 0.1119,
+      "roc_auc": 0.7537,
+      "precision": 1.0,
+      "recall": 0.1,
+      "f1": 0.1818,
       "confusion_matrix": [
         [
-          1988,
-          2
+          1990,
+          0
         ],
         [
-          0,
-          10
+          9,
+          1
         ]
       ],
       "n_positive": 10,
       "n_total": 2000
     },
     "genome_t3": {
-      "pr_auc": 1.0,
-      "roc_auc": 1.0,
-      "precision": 0.8333,
-      "recall": 1.0,
-      "f1": 0.9091,
+      "pr_auc": 0.1134,
+      "roc_auc": 0.7619,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
       "confusion_matrix": [
         [
-          1988,
-          2
+          1990,
+          0
         ],
         [
-          0,
-          10
+          10,
+          0
         ]
       ],
       "n_positive": 10,
@@ -157,9 +157,9 @@
     }
   },
   "comparison": {
-    "t3_improvement_prauc": 0.0,
-    "t3_improvement_f1": 0.0,
-    "baseline_degradation_prauc": 0.0,
-    "genome_degradation_prauc": 0.0
+    "t3_improvement_prauc": 0.0015,
+    "t3_improvement_f1": -0.1818,
+    "baseline_degradation_prauc": -0.8881,
+    "genome_degradation_prauc": -0.8866
   }
 }

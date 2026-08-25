@@ -16,6 +16,10 @@ NUM_DEVICES = 500
 NUM_IPS = 1000
 NUM_TRANSACTIONS = 20000
 
+# Set seed for reproducibility
+random.seed(42)
+np.random.seed(42)
+
 # Time periods (30 days total, split into three 10-day phases)
 BASE_DATE = datetime.now() - timedelta(days=30)
 PHASE_DAYS = 10
@@ -34,11 +38,11 @@ def random_date(start, end):
 
 
 def generate_entities():
-    # Accounts (Baseline normal accounts created prior to T1)
+    # Accounts (created 10 to 90 days prior to BASE_DATE)
     accounts = []
     for _ in range(NUM_ACCOUNTS):
         created = fake.date_time_between(
-            start_date=BASE_DATE - timedelta(days=90), end_date=BASE_DATE
+            start_date=BASE_DATE - timedelta(days=90), end_date=BASE_DATE - timedelta(days=10)
         )
         accounts.append({
             "account_id": str(uuid.uuid4()),
@@ -83,11 +87,24 @@ def generate_entities():
 
 
 def generate_normal_transactions(accounts_df, merchants_df, devices_df, ips_df):
-    """Generate normal transactions distributed explicitly across T1, T2, and T3."""
+    """Generate normal transactions with realistic customer entity preference distributions."""
     transactions = []
     labels = []
 
-    # Distribute normal transactions evenly across T1, T2, T3
+    account_ids = accounts_df["account_id"].tolist()
+    device_ids = devices_df["device_id"].tolist()
+    ip_ids = ips_df["ip_id"].tolist()
+    merchant_ids = merchants_df["merchant_id"].tolist()
+
+    # Assign primary device, IP, and merchant preferences to normal accounts
+    acct_preferences = {}
+    for aid in account_ids:
+        acct_preferences[aid] = {
+            "devices": random.sample(device_ids, k=random.choice([1, 1, 2])),
+            "ips": random.sample(ip_ids, k=random.choice([1, 2])),
+            "merchants": random.sample(merchant_ids, k=random.choice([1, 2, 3])),
+        }
+
     tx_per_phase = NUM_TRANSACTIONS // 3
     phase_scenarios = {
         "T1": "baseline_normal",
@@ -100,13 +117,26 @@ def generate_normal_transactions(accounts_df, merchants_df, devices_df, ips_df):
         for _ in range(tx_per_phase):
             tx_id = str(uuid.uuid4())
             ts = random_date(start, end)
+            acct_id = random.choice(account_ids)
+            pref = acct_preferences[acct_id]
+
+            # 85% of time use preferred merchant, 15% random
+            if random.random() < 0.85:
+                merch_id = random.choice(pref["merchants"])
+            else:
+                merch_id = random.choice(merchant_ids)
+
+            # 90% of time use preferred device & IP
+            dev_id = random.choice(pref["devices"]) if random.random() < 0.90 else random.choice(device_ids)
+            ip_id = random.choice(pref["ips"]) if random.random() < 0.90 else random.choice(ip_ids)
+
             tx = {
                 "transaction_id": tx_id,
                 "timestamp": ts.isoformat(),
-                "account_id": accounts_df.sample(1).iloc[0]["account_id"],
-                "merchant_id": merchants_df.sample(1).iloc[0]["merchant_id"],
-                "device_id": devices_df.sample(1).iloc[0]["device_id"],
-                "ip_id": ips_df.sample(1).iloc[0]["ip_id"],
+                "account_id": acct_id,
+                "merchant_id": merch_id,
+                "device_id": dev_id,
+                "ip_id": ip_id,
                 "amount": round(random.uniform(1, 5000), 2),
             }
             lbl = {
@@ -125,46 +155,42 @@ def generate_normal_transactions(accounts_df, merchants_df, devices_df, ips_df):
 def inject_evolving_fraud_ring(
     transactions, labels, accounts_df, merchants_df, devices_df, ips_df
 ):
-    """Inject a persistent fraud ring that evolves from T2 (coordinated) to T3 (mutated).
+    """Inject a persistent fraud ring evolving from T2 (coordinated) to T3 (mutated).
 
     Features:
-    - 1 shared merchant
-    - 10 accounts created near the start of T2
+    - 1 shared merchant across T2 & T3
+    - 10 accounts created prior to T1 (matching normal population account age distribution)
     - 2 shared IPs across T2 & T3
-    - T2: 3 shared devices across all 10 accounts
-    - T3: 10 distinct devices (1 per account mutation) while keeping same 2 IPs & merchant
+    - T2: 3 shared devices across all 10 accounts + elevated velocity/amounts (obvious baseline signal)
+    - T3: 10 distinct devices (1 per account) + normal velocity/amounts (camouflaged baseline signal)
     """
     t2_start, t2_end = PHASES["T2"]
     t3_start, t3_end = PHASES["T3"]
 
     # Select 1 fraud merchant
-    fraud_merchant_id = merchants_df.sample(1).iloc[0]["merchant_id"]
+    fraud_merchant_id = merchants_df.sample(1, random_state=42).iloc[0]["merchant_id"]
 
-    # Select 10 fraud accounts and set created_at near start of T2 (within 48h prior to T2 start)
-    fraud_account_indices = accounts_df.sample(10).index
-    fraud_accounts = []
-    for idx in fraud_account_indices:
-        created_dt = t2_start - timedelta(hours=random.randint(1, 48))
-        accounts_df.loc[idx, "created_at"] = created_dt.isoformat()
-        fraud_accounts.append(accounts_df.loc[idx, "account_id"])
+    # Select 10 fraud accounts from accounts_df (they already have normal creation dates)
+    fraud_account_indices = accounts_df.sample(10, random_state=42).index
+    fraud_accounts = accounts_df.loc[fraud_account_indices, "account_id"].tolist()
 
     # Shared IPs (2 IPs)
-    shared_ips = ips_df.sample(2)["ip_id"].tolist()
+    shared_ips = ips_df.sample(2, random_state=42)["ip_id"].tolist()
 
     # T2 Shared Devices (3 devices)
-    t2_devices = devices_df.sample(3)["device_id"].tolist()
+    t2_devices = devices_df.sample(3, random_state=42)["device_id"].tolist()
 
     # T3 Mutated Devices (10 distinct devices, 1 per fraud account)
     available_devices = devices_df[~devices_df["device_id"].isin(t2_devices)]
-    t3_devices = available_devices.sample(10)["device_id"].tolist()
+    t3_devices = available_devices.sample(10, random_state=43)["device_id"].tolist()
     account_t3_device_map = dict(zip(fraud_accounts, t3_devices))
 
     cluster_id = "cluster_001"
     fraud_family = "coordinated_ring"
 
-    # Inject T2 Coordinated Fraud
+    # Inject T2 Coordinated Fraud (elevated velocity + distinct amounts + shared devices/IPs/merchant)
     for acct_id in fraud_accounts:
-        num_tx = random.randint(5, 15)
+        num_tx = random.randint(10, 20)  # Elevated activity in T2
         for _ in range(num_tx):
             tx_id = str(uuid.uuid4())
             ts = random_date(t2_start, t2_end)
@@ -178,7 +204,7 @@ def inject_evolving_fraud_ring(
                 "merchant_id": fraud_merchant_id,
                 "device_id": device_id,
                 "ip_id": ip_id,
-                "amount": round(random.uniform(100, 2000), 2),
+                "amount": round(random.uniform(500, 3000), 2),
             }
             lbl = {
                 "transaction_id": tx_id,
@@ -190,9 +216,9 @@ def inject_evolving_fraud_ring(
             transactions.append(tx)
             labels.append(lbl)
 
-    # Inject T3 Mutated Fraud (device mutation per account)
+    # Inject T3 Mutated Fraud (camouflaged surface behavior + 10 distinct devices)
     for acct_id in fraud_accounts:
-        num_tx = random.randint(5, 15)
+        num_tx = random.randint(2, 5)  # Normal transaction count in T3 (~0.3 tx/day)
         device_id = account_t3_device_map[acct_id]  # Unique device for this account in T3
         for _ in range(num_tx):
             tx_id = str(uuid.uuid4())
@@ -206,7 +232,7 @@ def inject_evolving_fraud_ring(
                 "merchant_id": fraud_merchant_id,
                 "device_id": device_id,
                 "ip_id": ip_id,
-                "amount": round(random.uniform(100, 2000), 2),
+                "amount": round(random.uniform(1, 5000), 2),  # Uniform matching normal population
             }
             lbl = {
                 "transaction_id": tx_id,
@@ -222,7 +248,7 @@ def inject_evolving_fraud_ring(
 
 
 def validate_dataset(transactions_df, labels_df, accounts_df, merchants_df, devices_df, ips_df):
-    """Run automated checks to verify dataset integrity and experimental constraints."""
+    """Run automated checks to verify dataset integrity and experimental topology constraints."""
     print("\n--- Running Dataset Validation Checks ---")
     merged = pd.merge(transactions_df, labels_df, on="transaction_id")
     merged["dt"] = pd.to_datetime(merged["timestamp"])
@@ -258,7 +284,7 @@ def validate_dataset(transactions_df, labels_df, accounts_df, merchants_df, devi
     ), f"Validation Failed: T2 fraud uses {t2_devices_count} devices (expected <= 3)!"
     print(f"✓ Check 4 Passed: T2 fraud uses {t2_devices_count} shared devices (<= 3).")
 
-    # 5. T3 fraud uses ~10 devices (1 per account)
+    # 5. T3 fraud uses 10 devices (1 per account)
     t3_devices_count = t3_fraud["device_id"].nunique()
     assert (
         t3_devices_count == 10
@@ -289,16 +315,100 @@ def validate_dataset(transactions_df, labels_df, accounts_df, merchants_df, devi
     ), f"Validation Failed: T2/T3 fraud IPs mismatch (T2: {t2_ips}, T3: {t3_ips})!"
     print("✓ Check 8 Passed: T2 and T3 fraud share the exact same 2 IP addresses.")
 
-    # 9. Fraud accounts created near start of T2
-    fraud_accts_df = accounts_df[accounts_df["account_id"].isin(t2_accounts)]
-    fraud_created_dts = pd.to_datetime(fraud_accts_df["created_at"])
-    for dt in fraud_created_dts:
-        assert (
-            t2_start - timedelta(hours=48) <= dt <= t2_start
-        ), f"Validation Failed: Fraud account creation date {dt} is outside T2 window!"
-    print("✓ Check 9 Passed: All 10 fraud accounts were created near the start of T2 (within 48h).")
+    print("--- All Topology Checks Passed Successfully! ---\n")
 
-    print("--- All Validation Checks Passed Successfully! ---\n")
+
+def print_validation_summary(transactions_df, labels_df, accounts_df):
+    """Print statistical comparison validating that T3 fraud surface behavior overlaps with normal behavior."""
+    merged = pd.merge(transactions_df, labels_df, on="transaction_id")
+    merged["dt"] = pd.to_datetime(merged["timestamp"])
+    accounts_df["created_at_dt"] = pd.to_datetime(accounts_df["created_at"])
+
+    t1_start, t1_end = PHASES["T1"]
+    t2_start, t2_end = PHASES["T2"]
+    t3_start, t3_end = PHASES["T3"]
+
+    def compute_stats(df_sub, phase_start, label_name):
+        if df_sub.empty:
+            return {}
+
+        n_tx = len(df_sub)
+        n_accts = df_sub["account_id"].nunique()
+
+        # Transactions per account
+        tx_counts = df_sub.groupby("account_id").size()
+        mean_tx_count = tx_counts.mean()
+        velocity = mean_tx_count / PHASE_DAYS
+
+        mean_amt = df_sub["amount"].mean()
+        std_amt = df_sub["amount"].std()
+
+        # Account age at phase start
+        acct_sub = accounts_df[accounts_df["account_id"].isin(df_sub["account_id"])]
+        ages = (phase_start - acct_sub["created_at_dt"]).dt.days
+        mean_age = ages.mean()
+
+        # Devices and IPs per account
+        devs_per_acct = df_sub.groupby("account_id")["device_id"].nunique().mean()
+        ips_per_acct = df_sub.groupby("account_id")["ip_id"].nunique().mean()
+
+        # Device/IP sharing across accounts
+        total_devs = df_sub["device_id"].nunique()
+        dev_acct_counts = df_sub.groupby("device_id")["account_id"].nunique()
+        shared_devs = (dev_acct_counts >= 2).sum()
+        dev_sharing_ratio = shared_devs / total_devs if total_devs > 0 else 0.0
+
+        total_ips = df_sub["ip_id"].nunique()
+        ip_acct_counts = df_sub.groupby("ip_id")["account_id"].nunique()
+        shared_ips = (ip_acct_counts >= 2).sum()
+        ip_sharing_ratio = shared_ips / total_ips if total_ips > 0 else 0.0
+
+        # Merchant concentration (max tx fraction at top merchant per account)
+        top_merch_n = df_sub.groupby(["account_id", "merchant_id"]).size().groupby("account_id").max()
+        merch_conc = (top_merch_n / tx_counts).mean()
+
+        return {
+            "Label": label_name,
+            "Total Tx": n_tx,
+            "Active Accts": n_accts,
+            "Tx/Acct": round(mean_tx_count, 2),
+            "Velocity (tx/day)": round(velocity, 2),
+            "Avg Amount ($)": round(mean_amt, 2),
+            "Std Amount ($)": round(std_amt, 2),
+            "Account Age (days)": round(mean_age, 1),
+            "Devs/Acct": round(devs_per_acct, 2),
+            "IPs/Acct": round(ips_per_acct, 2),
+            "Device Sharing Ratio": round(dev_sharing_ratio, 3),
+            "IP Sharing Ratio": round(ip_sharing_ratio, 3),
+            "Merch Conc": round(merch_conc, 3),
+        }
+
+    t1_norm_df = merged[(merged["dt"] >= t1_start) & (merged["dt"] < t1_end)]
+    t2_norm_df = merged[(merged["dt"] >= t2_start) & (merged["dt"] < t2_end) & (~merged["is_fraud"])]
+    t2_fraud_df = merged[merged["scenario"] == "t2_coordinated_fraud"]
+    t3_norm_df = merged[(merged["dt"] >= t3_start) & (~merged["is_fraud"])]
+    t3_fraud_df = merged[merged["scenario"] == "t3_mutated_fraud"]
+
+    s_t1_norm = compute_stats(t1_norm_df, t1_start, "T1 Normal")
+    s_t2_fraud = compute_stats(t2_fraud_df, t2_start, "T2 Fraud (Coordinated)")
+    s_t3_norm = compute_stats(t3_norm_df, t3_start, "T3 Normal")
+    s_t3_fraud = compute_stats(t3_fraud_df, t3_start, "T3 Mutated Fraud")
+
+    stats_df = pd.DataFrame([s_t1_norm, s_t2_fraud, s_t3_norm, s_t3_fraud])
+
+    print("=" * 100)
+    print("  BEHAVIORAL & TOPOLOGY VALIDATION SUMMARY")
+    print("=" * 100)
+    print(stats_df.to_string(index=False))
+    print("=" * 100)
+
+    # Relative validation check: T3 fraud surface behavior is substantially closer to normal than T2 fraud
+    t2_tx_diff = abs(s_t2_fraud["Tx/Acct"] - s_t1_norm["Tx/Acct"])
+    t3_tx_diff = abs(s_t3_fraud["Tx/Acct"] - s_t3_norm["Tx/Acct"])
+    assert t3_tx_diff < t2_tx_diff, (
+        f"Validation Failed: T3 fraud transaction count difference ({t3_tx_diff}) is not smaller than T2 ({t2_tx_diff})!"
+    )
+    print("\n✓ Surface behavior validation passed: T3 fraud transaction count overlaps with normal population.\n")
 
 
 def main(output_dir=None):
@@ -337,8 +447,9 @@ def main(output_dir=None):
 
     print(f"Synthetic data & fraud labels generated successfully in '{output_dir}'.")
 
-    # Run automated dataset validation
+    # Run automated dataset topology validation & print validation summary
     validate_dataset(transactions_df, labels_df, accounts_df, merchants_df, devices_df, ips_df)
+    print_validation_summary(transactions_df, labels_df, accounts_df)
 
 
 if __name__ == "__main__":
