@@ -1,0 +1,165 @@
+{
+  "feature_audit": {
+    "total_columns": 50,
+    "excluded_columns": [
+      "account_id",
+      "phase",
+      "is_fraud_account",
+      "fraud_cluster_id",
+      "graph_community_fraud_ratio"
+    ],
+    "leakage_features": [
+      "graph_community_fraud_ratio"
+    ],
+    "leakage_explanation": "graph_community_fraud_ratio is computed from is_fraud ground truth labels in community.py line 190. It encodes the fraction of accounts in a Louvain community that are labeled fraudulent.",
+    "baseline_features": [
+      "acct_tx_count",
+      "acct_tx_velocity",
+      "acct_active_days",
+      "acct_amount_total",
+      "acct_amount_avg",
+      "acct_amount_std",
+      "acct_age_days",
+      "acct_kyc_unverified",
+      "dev_unique_count",
+      "dev_tx_per_device",
+      "dev_concentration",
+      "net_unique_ip_count",
+      "net_tx_per_ip",
+      "net_ip_concentration",
+      "tx_velocity",
+      "tx_amount_mean",
+      "tx_amount_max",
+      "tx_amount_concentration",
+      "tx_time_spread_hours",
+      "tx_hour_mode",
+      "tx_weekend_ratio",
+      "merch_unique_count",
+      "merch_concentration",
+      "merch_top_category",
+      "merch_avg_age_days"
+    ],
+    "baseline_feature_count": 25,
+    "genome_only_features": [
+      "dev_max_accts_per_device",
+      "dev_shared_count",
+      "dev_shared_ratio",
+      "net_max_accts_per_ip",
+      "net_shared_ip_count",
+      "net_shared_ip_ratio",
+      "merch_max_accts_per_merchant",
+      "graph_degree",
+      "graph_weighted_degree",
+      "graph_connected_devices",
+      "graph_connected_ips",
+      "graph_connected_merchants",
+      "graph_shared_devices",
+      "graph_shared_ips",
+      "graph_proj_degree",
+      "graph_proj_weighted_degree",
+      "graph_community_size",
+      "graph_community_density",
+      "graph_community_shared_device_ratio",
+      "graph_community_shared_ip_ratio"
+    ],
+    "genome_only_feature_count": 20,
+    "fraudgenome_total_features": 45
+  },
+  "train_test_split": {
+    "train_phases": [
+      "T1",
+      "T2"
+    ],
+    "test_phase": "T3",
+    "train_rows": 4000,
+    "test_rows": 2000,
+    "train_fraud_count": 10,
+    "train_fraud_pct": 0.25,
+    "test_fraud_count": 10,
+    "test_fraud_pct": 0.5
+  },
+  "metrics": {
+    "baseline_t3": {
+      "pr_auc": 1.0,
+      "roc_auc": 1.0,
+      "precision": 0.8333,
+      "recall": 1.0,
+      "f1": 0.9091,
+      "confusion_matrix": [
+        [
+          1988,
+          2
+        ],
+        [
+          0,
+          10
+        ]
+      ],
+      "n_positive": 10,
+      "n_total": 2000
+    },
+    "genome_t3": {
+      "pr_auc": 1.0,
+      "roc_auc": 1.0,
+      "precision": 0.8333,
+      "recall": 1.0,
+      "f1": 0.9091,
+      "confusion_matrix": [
+        [
+          1988,
+          2
+        ],
+        [
+          0,
+          10
+        ]
+      ],
+      "n_positive": 10,
+      "n_total": 2000
+    },
+    "baseline_t2_reference": {
+      "pr_auc": 1.0,
+      "roc_auc": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "confusion_matrix": [
+        [
+          1990,
+          0
+        ],
+        [
+          0,
+          10
+        ]
+      ],
+      "n_positive": 10,
+      "n_total": 2000
+    },
+    "genome_t2_reference": {
+      "pr_auc": 1.0,
+      "roc_auc": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "confusion_matrix": [
+        [
+          1990,
+          0
+        ],
+        [
+          0,
+          10
+        ]
+      ],
+      "n_positive": 10,
+      "n_total": 2000
+    }
+  },
+  "comparison": {
+    "t3_improvement_prauc": 0.0,
+    "t3_improvement_f1": 0.0,
+    "baseline_degradation_prauc": 0.0,
+    "genome_degradation_prauc": 0.0
+  }
+}
