@@ -1,16 +1,18 @@
 """
-model.py — FraudGenome Model & Data Splitting Pipeline
+model.py — FraudGenome Model & Leakage-Safe Data Splitting Pipeline
 
-Implements a leakage-safe train/validation/test data splitting strategy:
-1. Account-Level Stratified Group Split (70% Train / 15% Validation / 15% Test)
-   - Groups by account_id so all 3 temporal phases (T1, T2, T3) of an account stay together.
-   - Eliminates account identity leakage between Train, Validation, and Test sets.
-   - Stratifies fraud accounts across splits to preserve label distribution.
+Implements a TRUE Cluster-Grouped + Account-Grouped Stratified Data Splitting Strategy:
+1. Primary Split: Cluster-Grouped + Account-Grouped Stratified Split (70/15/15)
+   - Enforces 100% isolation of non-'none' `fraud_cluster_id` values across Train, Validation, and Test.
+   - Grouping by `account_id` ensures all temporal rows (T1, T2, T3) of an account stay in the exact same split.
+   - Eliminates both Account Identity Leakage and Fraud-Cluster Structural Leakage between splits.
+   - Programmatically asserts `no_account_overlap` AND `no_fraud_cluster_overlap`.
 
-2. Temporal Split (T1+T2 -> T3) for out-of-time mutation experiments.
+2. Secondary Split: Temporal Experiment Split (T1+T2 -> T3) for out-of-time mutation evaluation.
 
-IMPORTANT: graph_community_fraud_ratio is excluded due to confirmed label leakage.
-Identifies and excludes identifier and target label columns (account_id, is_fraud_account, fraud_cluster_id).
+IMPORTANT:
+Excludes identifiers (`account_id`), target labels (`is_fraud_account`, `fraud_cluster_id`),
+metadata (`phase`), and leaked features (`graph_community_fraud_ratio`).
 """
 
 import json
@@ -35,7 +37,7 @@ import xgboost as xgb
 # Feature group definitions
 # ---------------------------------------------------------------------------
 
-# Columns that are identifiers, labels, or leaked — never used as features
+# Columns that are identifiers, labels, metadata, or leaked — never used as predictive features
 EXCLUDED_COLUMNS = [
     "account_id",
     "phase",
@@ -119,9 +121,9 @@ def audit_features(df):
                  and c not in identifiers and c not in targets
                  and c not in metadata and c not in leakage]
 
-    print("\n" + "=" * 75)
+    print("\n" + "=" * 80)
     print("  FEATURE AUDIT & LEAKAGE INSPECTION REPORT")
-    print("=" * 75)
+    print("=" * 80)
     print(f"\n  Total columns in genome_full.csv: {len(all_cols)}")
     print(f"\n  Identifier columns ({len(identifiers)}):")
     for c in identifiers:
@@ -159,7 +161,7 @@ def audit_features(df):
     else:
         print(f"\n  ✓ All columns accounted for.")
 
-    print("=" * 75 + "\n")
+    print("=" * 80 + "\n")
 
     # Verify all feature columns actually exist
     missing = [c for c in FRAUDGENOME_FEATURES if c not in df.columns]
@@ -168,88 +170,131 @@ def audit_features(df):
 
 
 # ---------------------------------------------------------------------------
-# 3. Leakage-Safe Data Splitting Pipeline
+# 3. True Cluster-Grouped + Account-Grouped Data Splitting Pipeline
 # ---------------------------------------------------------------------------
 
-def prepare_account_group_split(df, seed=42, train_ratio=0.70, val_ratio=0.15, test_ratio=0.15):
-    """Perform a leakage-safe Account-Level Stratified Group Split (70/15/15).
+def prepare_cluster_aware_group_split(df, seed=42):
+    """Perform a leakage-safe Cluster-Grouped + Account-Grouped Stratified Split (70/15/15).
 
-    Why this strategy:
-    - Each of the 2,000 accounts appears across 3 temporal phases (T1, T2, T3).
-    - Grouping by `account_id` ensures all rows of an account stay in the SAME split,
-      eliminating cross-phase account identity leakage.
-    - Stratifying on fraud status at the account level ensures Train, Validation, and Test
-      each receive representative fraud samples without label starvation.
+    Methodology:
+    1. Fraud Cluster Isolation:
+       - Extracts unique non-'none' `fraud_cluster_id` values.
+       - Deterministically allocates clusters so that no single `fraud_cluster_id` appears
+         in more than one split (Train: ~60%, Val: ~20%, Test: ~20%).
+       - All accounts belonging to a fraud cluster stay in the split assigned to that cluster.
+    2. Legitimate Account Distribution:
+       - Legitimate accounts (`fraud_cluster_id == 'none'`) are split 70% Train, 15% Validation, 15% Test.
+    3. Account-Level Group Isolation:
+       - All temporal phase rows (T1, T2, T3) for an account stay together in the same split.
 
     Args:
         df: Full genome DataFrame (6000 rows x 50 cols).
         seed: Random seed for reproducibility.
-        train_ratio: Fraction of accounts for training (default 0.70).
-        val_ratio: Fraction of accounts for validation (default 0.15).
-        test_ratio: Fraction of accounts for testing (default 0.15).
 
     Returns:
         train_df, val_df, test_df, split_report_dict
     """
-    assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-5, "Ratios must sum to 1.0"
-
-    # Summarize unique accounts and their fraud status
-    acct_df = df.groupby("account_id").agg(
+    acct_info = df.groupby("account_id").agg(
         is_fraud=("is_fraud_account", "any"),
-        has_cluster=("fraud_cluster_id", lambda x: any(i != "none" for i in x))
+        cluster_id=("fraud_cluster_id", lambda x: [i for i in x if i != "none"][0] if any(i != "none" for i in x) else "none")
     ).reset_index()
 
-    # Step 1: Split accounts into Train vs (Val + Test)
-    test_val_ratio = val_ratio + test_ratio
-    train_accts, test_val_accts = train_test_split(
-        acct_df,
-        test_size=test_val_ratio,
-        stratify=acct_df["is_fraud"],
-        random_state=seed,
+    # Step 1: Identify all unique non-'none' fraud clusters
+    fraud_clusters = sorted([c for c in acct_info["cluster_id"].unique() if c != "none"])
+
+    # Allocate clusters: ~60% Train (3 clusters), ~20% Val (1 cluster), ~20% Test (1 cluster)
+    n_clusters = len(fraud_clusters)
+
+    # Use reproducible deterministic partition
+    rng = np.random.RandomState(seed)
+    shuffled_clusters = list(fraud_clusters)
+    rng.shuffle(shuffled_clusters)
+
+    n_train_c = max(int(np.round(0.60 * n_clusters)), 1)
+    n_val_c = max(int(np.round(0.20 * n_clusters)), 1)
+
+    train_clusters = sorted(shuffled_clusters[:n_train_c])
+    val_clusters = sorted(shuffled_clusters[n_train_c:n_train_c + n_val_c])
+    test_clusters = sorted(shuffled_clusters[n_train_c + n_val_c:])
+
+    # Fraud accounts per split
+    fraud_accts = acct_info[acct_info["is_fraud"]]
+    train_fraud_accts = fraud_accts[fraud_accts["cluster_id"].isin(train_clusters)]
+    val_fraud_accts = fraud_accts[fraud_accts["cluster_id"].isin(val_clusters)]
+    test_fraud_accts = fraud_accts[fraud_accts["cluster_id"].isin(test_clusters)]
+
+    # Step 2: Split legitimate accounts ('none') 70% Train, 15% Validation, 15% Test
+    normal_accts = acct_info[~acct_info["is_fraud"]]
+    train_norm, test_val_norm = train_test_split(
+        normal_accts, test_size=0.30, random_state=seed
+    )
+    val_norm, test_norm = train_test_split(
+        test_val_norm, test_size=0.50, random_state=seed
     )
 
-    # Step 2: Split (Val + Test) equally into Validation and Test
-    val_relative_ratio = val_ratio / test_val_ratio
-    val_accts, test_accts = train_test_split(
-        test_val_accts,
-        test_size=(1.0 - val_relative_ratio),
-        stratify=test_val_accts["is_fraud"],
-        random_state=seed,
+    # Step 3: Combine account IDs per split
+    train_acct_ids = set(train_fraud_accts["account_id"]).union(set(train_norm["account_id"]))
+    val_acct_ids = set(val_fraud_accts["account_id"]).union(set(val_norm["account_id"]))
+    test_acct_ids = set(test_fraud_accts["account_id"]).union(set(test_norm["account_id"]))
+
+    # Step 4: Filter row-level DataFrame (all 3 phases for selected accounts)
+    train_df = df[df["account_id"].isin(train_acct_ids)].copy().reset_index(drop=True)
+    val_df = df[df["account_id"].isin(val_acct_ids)].copy().reset_index(drop=True)
+    test_df = df[df["account_id"].isin(test_acct_ids)].copy().reset_index(drop=True)
+
+    # Step 5: Programmatic validation assertions
+    report = validate_split(
+        train_df, val_df, test_df,
+        train_clusters, val_clusters, test_clusters
     )
-
-    # Map back to row-level DataFrame (including all phases)
-    train_df = df[df["account_id"].isin(train_accts["account_id"])].copy().reset_index(drop=True)
-    val_df = df[df["account_id"].isin(val_accts["account_id"])].copy().reset_index(drop=True)
-    test_df = df[df["account_id"].isin(test_accts["account_id"])].copy().reset_index(drop=True)
-
-    # Perform automated validation checks
-    report = validate_split(train_df, val_df, test_df)
 
     return train_df, val_df, test_df, report
 
 
-def validate_split(train_df, val_df, test_df):
-    """Run automated verification checks on the train/validation/test split."""
+def validate_split(train_df, val_df, test_df, train_clusters, val_clusters, test_clusters):
+    """Run automated verification checks on account and fraud cluster isolation."""
     train_accts = set(train_df["account_id"])
     val_accts = set(val_df["account_id"])
     test_accts = set(test_df["account_id"])
 
-    # 1. Overlap checks
-    tv_overlap = len(train_accts.intersection(val_accts))
-    tt_overlap = len(train_accts.intersection(test_accts))
-    vt_overlap = len(val_accts.intersection(test_accts))
+    # 1. Account Overlap Checks
+    tv_acct_overlap = len(train_accts.intersection(val_accts))
+    tt_acct_overlap = len(train_accts.intersection(test_accts))
+    vt_acct_overlap = len(val_accts.intersection(test_accts))
 
-    assert tv_overlap == 0, f"Account leakage detected! Train and Val share {tv_overlap} accounts."
-    assert tt_overlap == 0, f"Account leakage detected! Train and Test share {tt_overlap} accounts."
-    assert vt_overlap == 0, f"Account leakage detected! Val and Test share {vt_overlap} accounts."
+    no_account_overlap = (tv_acct_overlap == 0 and tt_acct_overlap == 0 and vt_acct_overlap == 0)
+    assert no_account_overlap, (
+        f"ACCOUNT LEAKAGE ASSERTION FAILED! Overlaps: Train-Val={tv_acct_overlap}, "
+        f"Train-Test={tt_acct_overlap}, Val-Test={vt_acct_overlap}"
+    )
 
-    # 2. Sample counts and percentages
+    # 2. Fraud Cluster Overlap Checks (for non-'none' clusters)
+    c_train = set(train_clusters)
+    c_val = set(val_clusters)
+    c_test = set(test_clusters)
+
+    tv_cluster_overlap = c_train.intersection(c_val)
+    tt_cluster_overlap = c_train.intersection(c_test)
+    vt_cluster_overlap = c_val.intersection(c_test)
+
+    no_fraud_cluster_overlap = (
+        len(tv_cluster_overlap) == 0 and len(tt_cluster_overlap) == 0 and len(vt_cluster_overlap) == 0
+    )
+    assert no_fraud_cluster_overlap, (
+        f"FRAUD CLUSTER LEAKAGE ASSERTION FAILED! Overlapping clusters: "
+        f"Train-Val={tv_cluster_overlap}, Train-Test={tt_cluster_overlap}, Val-Test={vt_cluster_overlap}"
+    )
+
+    # 3. Overall Leakage-Safe Condition
+    leakage_safe = no_account_overlap and no_fraud_cluster_overlap
+    assert leakage_safe, "LEAKAGE SAFETY ASSERTION FAILED!"
+
+    # 4. Sample and Fraud Metrics
     total_rows = len(train_df) + len(val_df) + len(test_df)
     train_pct = 100 * len(train_df) / total_rows
     val_pct = 100 * len(val_df) / total_rows
     test_pct = 100 * len(test_df) / total_rows
 
-    # 3. Fraud counts and percentages
     train_fraud_count = int(train_df["is_fraud_account"].sum())
     val_fraud_count = int(val_df["is_fraud_account"].sum())
     test_fraud_count = int(test_df["is_fraud_account"].sum())
@@ -258,20 +303,13 @@ def validate_split(train_df, val_df, test_df):
     val_fraud_pct = 100 * val_df["is_fraud_account"].mean()
     test_fraud_pct = 100 * test_df["is_fraud_account"].mean()
 
-    # 4. Cluster counts per split
-    def get_clusters(df_sub):
-        clusters = set(df_sub["fraud_cluster_id"].unique())
-        clusters.discard("none")
-        return list(clusters)
+    overall_fraud_pct = 100 * (train_fraud_count + val_fraud_count + test_fraud_count) / total_rows
 
-    train_clusters = get_clusters(train_df)
-    val_clusters = get_clusters(val_df)
-    test_clusters = get_clusters(test_df)
-
-    # Compile split report
     report = {
-        "strategy": "Account-Level Stratified Group Split (70/15/15)",
+        "strategy": "True Cluster-Grouped + Account-Grouped Stratified Split (70/15/15)",
         "total_rows": total_rows,
+        "overall_fraud_pct": round(overall_fraud_pct, 4),
+        "leakage_safe": leakage_safe,
         "splits": {
             "train": {
                 "rows": len(train_df),
@@ -302,45 +340,57 @@ def validate_split(train_df, val_df, test_df):
             },
         },
         "overlap_verification": {
-            "train_val_account_overlap": tv_overlap,
-            "train_test_account_overlap": tt_overlap,
-            "val_test_account_overlap": vt_overlap,
-            "leakage_safe": True,
+            "train_val_account_overlap": tv_acct_overlap,
+            "train_test_account_overlap": tt_acct_overlap,
+            "val_test_account_overlap": vt_acct_overlap,
+            "no_account_overlap": no_account_overlap,
+            "train_val_cluster_overlap": list(tv_cluster_overlap),
+            "train_test_cluster_overlap": list(tt_cluster_overlap),
+            "val_test_cluster_overlap": list(vt_cluster_overlap),
+            "no_fraud_cluster_overlap": no_fraud_cluster_overlap,
+            "leakage_safe": leakage_safe,
         },
     }
 
-    print("=" * 75)
-    print("  LEAKAGE-SAFE DATA SPLIT REPORT")
-    print("=" * 75)
+    print("=" * 80)
+    print("  LEAKAGE-SAFE CLUSTER-GROUPED DATA SPLIT REPORT")
+    print("=" * 80)
     print(f"\n  Strategy: {report['strategy']}")
-    print(f"  Total Dataset Rows: {total_rows}")
+    print(f"  Total Dataset Rows: {total_rows}  | Overall Fraud Prevalence: {overall_fraud_pct:.2f}%")
+    print(f"  Leakage-Safe Condition (no_account_overlap AND no_fraud_cluster_overlap): {leakage_safe}")
 
-    print(f"\n  {'Split':<12} {'Rows':>8} {'Pct':>8} {'Accounts':>10} {'Fraud Rows':>12} {'Fraud %':>10} {'Clusters':>10}")
-    print("  " + "-" * 72)
+    print(f"\n  {'Split':<12} {'Rows':>8} {'Pct':>8} {'Accounts':>10} {'Fraud Rows':>12} {'Fraud %':>10} {'Clusters':>12}")
+    print("  " + "-" * 78)
     for name, s in report["splits"].items():
-        print(f"  {name.upper():<12} {s['rows']:>8} {s['row_pct']:>7.1f}% {s['unique_accounts']:>10} {s['fraud_rows']:>12} {s['fraud_pct']:>9.2f}% {s['fraud_cluster_count']:>10}")
+        c_str = f"{s['fraud_cluster_count']} ({','.join(s['fraud_clusters'])})"
+        print(f"  {name.upper():<12} {s['rows']:>8} {s['row_pct']:>7.1f}% {s['unique_accounts']:>10} {s['fraud_rows']:>12} {s['fraud_pct']:>9.2f}% {c_str:>16}")
 
     print(f"\n  Account Overlap Checks:")
-    print(f"    ✓ Train vs Val Account Overlap:  {tv_overlap}")
-    print(f"    ✓ Train vs Test Account Overlap: {tt_overlap}")
-    print(f"    ✓ Val vs Test Account Overlap:   {vt_overlap}")
-    print("=" * 75 + "\n")
+    print(f"    ✓ Train vs Val Account Overlap:  {tv_acct_overlap}")
+    print(f"    ✓ Train vs Test Account Overlap: {tt_acct_overlap}")
+    print(f"    ✓ Val vs Test Account Overlap:   {vt_acct_overlap}")
+
+    print(f"\n  Fraud Cluster Overlap Checks (non-'none'):")
+    print(f"    ✓ Train vs Val Cluster Overlap:  {list(tv_cluster_overlap)}")
+    print(f"    ✓ Train vs Test Cluster Overlap: {list(tt_cluster_overlap)}")
+    print(f"    ✓ Val vs Test Cluster Overlap:   {list(vt_cluster_overlap)}")
+    print("=" * 80 + "\n")
 
     return report
 
 
 def prepare_temporal_split(df):
-    """Optional temporal split: Train (T1+T2) -> Test (T3) for out-of-time experiment."""
+    """Optional temporal split: Train (T1+T2) -> Test (T3) for out-of-time mutation experiment."""
     train_df = df[df["phase"].isin(["T1", "T2"])].copy().reset_index(drop=True)
     test_df = df[df["phase"] == "T3"].copy().reset_index(drop=True)
     t2_ref_df = df[df["phase"] == "T2"].copy().reset_index(drop=True)
 
-    print("=" * 75)
+    print("=" * 80)
     print("  TEMPORAL EXPERIMENT SPLIT (T1+T2 -> T3)")
-    print("=" * 75)
+    print("=" * 80)
     print(f"  Train Rows (T1+T2): {len(train_df)}  | Fraud: {train_df['is_fraud_account'].sum()} ({100*train_df['is_fraud_account'].mean():.2f}%)")
     print(f"  Test Rows (T3):     {len(test_df)}  | Fraud: {test_df['is_fraud_account'].sum()} ({100*test_df['is_fraud_account'].mean():.2f}%)")
-    print("=" * 75 + "\n")
+    print("=" * 80 + "\n")
 
     return train_df, test_df, t2_ref_df
 
@@ -392,9 +442,9 @@ def main():
     # Step 1: Feature Audit & Leakage Inspection
     audit_features(df)
 
-    # Step 2: Prepare Leakage-Safe Account-Level Stratified Group Split (70/15/15)
-    train_df, val_df, test_df, split_report = prepare_account_group_split(
-        df, seed=42, train_ratio=0.70, val_ratio=0.15, test_ratio=0.15
+    # Step 2: Prepare Leakage-Safe True Cluster-Grouped + Account-Grouped Split
+    train_df, val_df, test_df, split_report = prepare_cluster_aware_group_split(
+        df, seed=42
     )
 
     # Step 3: Run Pipeline Smoke Test

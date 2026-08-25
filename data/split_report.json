@@ -1,17 +1,21 @@
 {
-  "strategy": "Account-Level Stratified Group Split (70/15/15)",
+  "strategy": "True Cluster-Grouped + Account-Grouped Stratified Split (70/15/15)",
   "total_rows": 6000,
+  "overall_fraud_pct": 0.3333,
+  "leakage_safe": true,
   "splits": {
     "train": {
-      "rows": 4200,
-      "row_pct": 70.0,
-      "unique_accounts": 1400,
-      "fraud_rows": 14,
-      "fraud_pct": 0.3333,
+      "rows": 4197,
+      "row_pct": 69.95,
+      "unique_accounts": 1399,
+      "fraud_rows": 12,
+      "fraud_pct": 0.2859,
       "fraud_clusters": [
-        "cluster_001"
+        "cluster_002",
+        "cluster_003",
+        "cluster_005"
       ],
-      "fraud_cluster_count": 1
+      "fraud_cluster_count": 3
     },
     "val": {
       "rows": 900,
@@ -25,13 +29,13 @@
       "fraud_cluster_count": 1
     },
     "test": {
-      "rows": 900,
-      "row_pct": 15.0,
-      "unique_accounts": 300,
-      "fraud_rows": 2,
-      "fraud_pct": 0.2222,
+      "rows": 903,
+      "row_pct": 15.05,
+      "unique_accounts": 301,
+      "fraud_rows": 4,
+      "fraud_pct": 0.443,
       "fraud_clusters": [
-        "cluster_001"
+        "cluster_004"
       ],
       "fraud_cluster_count": 1
     }
@@ -40,6 +44,11 @@
     "train_val_account_overlap": 0,
     "train_test_account_overlap": 0,
     "val_test_account_overlap": 0,
+    "no_account_overlap": true,
+    "train_val_cluster_overlap": [],
+    "train_test_cluster_overlap": [],
+    "val_test_cluster_overlap": [],
+    "no_fraud_cluster_overlap": true,
     "leakage_safe": true
   }
 }
