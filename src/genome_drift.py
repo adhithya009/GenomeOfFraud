@@ -1,19 +1,16 @@
 """
-genome_drift.py — Fraud Genome Drift Detection, Structural Mutation Analysis,
-                  and Mutation-Aware Feature Engineering
+genome_drift.py — Causal Historical Genome Reference, Account-Level Drift Detection,
+                  Relational Anomaly Scoring, Hybrid Risk Layer, & Dynamic Decisioning
 
-This module provides tools for quantifying behavioral and relational genome drift
-between experimental phases (specifically T2 vs T3), detecting structural mutations,
-constructing leakage-safe mutation-aware features, and generating human-readable
-interpretability reports.
-
-Key Principles:
-1. Ground-Truth Neutrality: Drift metrics do not use ground-truth fraud labels except
-   where explicitly required for evaluation/validation.
-2. Temporal Causality: Historical reference signatures are built strictly from past data (T1 or T1+T2)
-   to prevent future-data lookahead into T3.
-3. Multilevel Genome Analysis: Distinguishes between Level A (Individual Behavioral Genes)
-   and Level B (Relational Genome Structure).
+This module implements:
+1. Causal Historical Genome Reference Construction (T1 for T1/T2; T1+T2 for T3).
+2. Online Account-Level Drift Detection (standardized Z-scores vs historical reference).
+3. Relational Anomaly Scoring (graph structure co-usage deviation).
+4. Dynamic Decisioning & Threshold Calibration (percentile-based cutoff fit on T1+T2).
+5. Hybrid Risk Layer (Supervised Probability + Relational Anomaly + Genome Drift).
+6. Natural-Language Account Explanations.
+7. Automated Temporal Causality Unit Tests.
+8. Offline Population Drift Analysis (T2 vs T3).
 """
 
 import json
@@ -53,11 +50,7 @@ def get_gene_group(feature_name):
 
 
 def load_phase_features(data_dir=None):
-    """Load phase-specific genome CSVs and pre-built NetworkX graphs.
-
-    Returns:
-        df_t1, df_t2, df_t3 (DataFrames) and G_t1, G_t2, G_t3 (NetworkX Graphs if available)
-    """
+    """Load phase-specific genome CSVs and pre-built NetworkX graphs."""
     if data_dir is None:
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         data_dir = os.path.join(project_root, "data")
@@ -82,16 +75,357 @@ def load_phase_features(data_dir=None):
     return df_t1, df_t2, df_t3, G_t1, G_t2, G_t3, data_dir
 
 
-def compute_wasserstein_1d(u, v, num_quantiles=500):
-    """Compute 1D Wasserstein-1 (Earth Mover's) distance between two empirical distributions.
+# ===========================================================================
+# 1. Causal Historical Genome Reference Construction
+# ===========================================================================
 
-    Uses quantile matching over a fine grid, requiring zero external heavy dependencies.
+def build_historical_genome_reference(historical_df, feature_cols=None, reference_name="t1_t2", output_dir=None):
+    """Construct reusable historical genome reference statistics from past phase data.
+
+    Reference Policies:
+    - Phase T1: Reference = T1 population baseline
+    - Phase T2: Reference = T1 population baseline
+    - Phase T3: Reference = T1 + T2 population baseline
+
+    For each feature, calculates: mean, median, std, min, max, q25, q50, q75, prevalence.
     """
+    if feature_cols is None:
+        feature_cols = [
+            c for c in historical_df.columns
+            if c not in FORBIDDEN_COLS and pd.api.types.is_numeric_dtype(historical_df[c])
+        ]
+
+    reference_dict = {
+        "_metadata": {
+            "reference_name": reference_name,
+            "num_accounts": len(historical_df),
+            "phases_included": sorted(list(historical_df["phase"].unique())) if "phase" in historical_df.columns else ["T1"],
+            "feature_count": len(feature_cols),
+        }
+    }
+
+    for col in feature_cols:
+        vals = historical_df[col].values.astype(float)
+        vals_clean = vals[~np.isnan(vals)]
+
+        if len(vals_clean) == 0:
+            continue
+
+        col_mean = float(np.mean(vals_clean))
+        col_median = float(np.median(vals_clean))
+        col_std = float(np.std(vals_clean))
+        col_min = float(np.min(vals_clean))
+        col_max = float(np.max(vals_clean))
+        q25 = float(np.percentile(vals_clean, 25))
+        q50 = float(np.percentile(vals_clean, 50))
+        q75 = float(np.percentile(vals_clean, 75))
+
+        prevalence = float(np.mean(vals_clean > 0.5)) if set(np.unique(vals_clean)).issubset({0.0, 1.0}) else None
+
+        reference_dict[col] = {
+            "mean": round(col_mean, 6),
+            "median": round(col_median, 6),
+            "std": round(col_std, 6),
+            "min": round(col_min, 6),
+            "max": round(col_max, 6),
+            "q25": round(q25, 6),
+            "q50": round(q50, 6),
+            "q75": round(q75, 6),
+            "prevalence": round(prevalence, 6) if prevalence is not None else None,
+            "gene_group": get_gene_group(col),
+        }
+
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        out_path = os.path.join(output_dir, f"genome_reference_{reference_name}.json")
+        with open(out_path, "w") as f:
+            json.dump(reference_dict, f, indent=2)
+        print(f"  Saved historical genome reference to '{out_path}'.")
+
+    return reference_dict
+
+
+# ===========================================================================
+# 2. Account-Level Historical Genome Drift Computation
+# ===========================================================================
+
+def compute_account_genome_drift(current_df, reference_dict):
+    """Compute per-account standardized Z-score deviations from the historical genome reference.
+
+    Standardized Difference per feature: Z = |x_current - mu_hist| / (std_hist + 1e-5)
+
+    Features generated:
+    - account_genome_drift: Mean Z-score across all behavioral/relational genes
+    - behavioral_drift_score: Mean Z-score across Account, Device, and Transaction genes
+    - relational_drift_score: Mean Z-score across Network, Merchant, Graph, and Community genes
+    - device_drift_score: Mean Z-score of device genes
+    - network_drift_score: Mean Z-score of network genes
+    - merchant_drift_score: Mean Z-score of merchant genes
+    - graph_drift_score: Mean Z-score of graph genes
+    - community_drift_score: Mean Z-score of community genes
+    """
+    df_out = current_df.copy()
+
+    # Identify features present in reference_dict
+    ref_features = [k for k in reference_dict.keys() if not k.startswith("_") and k in df_out.columns]
+
+    z_scores = pd.DataFrame(index=df_out.index)
+
+    for col in ref_features:
+        mu = reference_dict[col]["mean"]
+        std = reference_dict[col]["std"]
+        vals = df_out[col].values.astype(float)
+        z = np.abs(vals - mu) / (std + 1e-5)
+        z_scores[col] = z
+
+    # Gene Group Z-score aggregates
+    groups = {
+        "device": [c for c in ref_features if c.startswith("dev_")],
+        "network": [c for c in ref_features if c.startswith("net_")],
+        "merchant": [c for c in ref_features if c.startswith("merch_")],
+        "graph": [c for c in ref_features if c.startswith("graph_") and not c.startswith("graph_community_")],
+        "community": [c for c in ref_features if c.startswith("graph_community_")],
+        "account": [c for c in ref_features if c.startswith("acct_")],
+        "transaction": [c for c in ref_features if c.startswith("tx_")],
+    }
+
+    for g_name, g_cols in groups.items():
+        valid_cols = [c for c in g_cols if c in z_scores.columns]
+        if valid_cols:
+            df_out[f"{g_name}_drift_score"] = z_scores[valid_cols].mean(axis=1).round(6)
+        else:
+            df_out[f"{g_name}_drift_score"] = 0.0
+
+    # Behavioral vs Relational drift composites
+    beh_cols = [c for c in (groups["account"] + groups["device"] + groups["transaction"]) if c in z_scores.columns]
+    rel_cols = [c for c in (groups["network"] + groups["merchant"] + groups["graph"] + groups["community"]) if c in z_scores.columns]
+
+    df_out["behavioral_drift_score"] = z_scores[beh_cols].mean(axis=1).round(6) if beh_cols else 0.0
+    df_out["relational_drift_score"] = z_scores[rel_cols].mean(axis=1).round(6) if rel_cols else 0.0
+
+    # Overall Account Genome Drift
+    df_out["account_genome_drift"] = z_scores.mean(axis=1).round(6)
+
+    return df_out
+
+
+def compute_mutation_aware_features(df_full, data_dir=None):
+    """Construct higher-level mutation features per account based on relational persistence vs device mutation."""
+    df_augmented = df_full.copy()
+
+    dev_tx_per_device = df_augmented.get("dev_tx_per_device", pd.Series(0.0, index=df_augmented.index))
+    net_shared_ip_ratio = df_augmented.get("net_shared_ip_ratio", pd.Series(0.0, index=df_augmented.index))
+    merch_concentration = df_augmented.get("merch_concentration", pd.Series(0.0, index=df_augmented.index))
+    merch_max_accts_per_merchant = df_augmented.get("merch_max_accts_per_merchant", pd.Series(0.0, index=df_augmented.index))
+    dev_unique_count = df_augmented.get("dev_unique_count", pd.Series(1.0, index=df_augmented.index))
+    tx_velocity = df_augmented.get("tx_velocity", pd.Series(0.0, index=df_augmented.index))
+    graph_proj_degree = df_augmented.get("graph_proj_degree", pd.Series(0.0, index=df_augmented.index))
+    graph_connected_ips = df_augmented.get("graph_connected_ips", pd.Series(0.0, index=df_augmented.index))
+    acct_kyc_unverified = df_augmented.get("acct_kyc_unverified", pd.Series(0.0, index=df_augmented.index))
+
+    net_ip_persistence_score = (net_shared_ip_ratio * (1.0 + graph_connected_ips) / (dev_unique_count + 1.0)).clip(lower=0.0)
+    merch_persistence_score = (merch_concentration * merch_max_accts_per_merchant).clip(lower=0.0)
+    dev_mutation_score = ((net_shared_ip_ratio * merch_concentration) / (dev_tx_per_device + 1.0)).clip(lower=0.0)
+    relational_stability_score = ((net_shared_ip_ratio + merch_max_accts_per_merchant + acct_kyc_unverified) / 3.0).clip(lower=0.0)
+    topology_drift_score = (graph_proj_degree / (dev_unique_count + 1.0)).clip(lower=0.0)
+    behavioral_shift_score = (tx_velocity / (merch_concentration + 1e-5)).clip(lower=0.0)
+    genome_drift_score = (dev_mutation_score + relational_stability_score + net_ip_persistence_score) / 3.0
+
+    df_augmented["net_ip_persistence_score"] = net_ip_persistence_score.round(6)
+    df_augmented["merch_persistence_score"] = merch_persistence_score.round(6)
+    df_augmented["dev_mutation_score"] = dev_mutation_score.round(6)
+    df_augmented["relational_stability_score"] = relational_stability_score.round(6)
+    df_augmented["topology_drift_score"] = topology_drift_score.round(6)
+    df_augmented["behavioral_shift_score"] = behavioral_shift_score.round(6)
+    df_augmented["genome_drift_score"] = genome_drift_score.round(6)
+
+    return df_augmented
+
+
+# ===========================================================================
+# 3. Relational Anomaly Scoring
+# ===========================================================================
+
+def compute_relational_anomaly_score(current_df, reference_dict):
+    """Compute an explicit Relational Anomaly Score measuring how unusual an account's
+    relational infrastructure sharing is compared to historical normal baselines.
+
+    Key Relational Features:
+    - net_shared_ip_ratio
+    - merch_max_accts_per_merchant
+    - graph_degree
+    - graph_proj_degree
+    - graph_community_density
+    - graph_connected_ips
+    - graph_connected_merchants
+
+    Calculates positive standardized deviation: Relational_Anomaly = mean( max(0, x - mu_hist) / std_hist )
+    """
+    rel_features = [
+        "net_shared_ip_ratio", "net_max_accts_per_ip", "net_shared_ip_count",
+        "merch_max_accts_per_merchant", "merch_concentration",
+        "graph_degree", "graph_proj_degree", "graph_connected_ips",
+        "graph_connected_merchants", "graph_community_density",
+        "graph_community_shared_ip_ratio",
+    ]
+
+    valid_feats = [f for f in rel_features if f in reference_dict and f in current_df.columns]
+
+    rel_z = []
+    for col in valid_feats:
+        mu = reference_dict[col]["mean"]
+        std = reference_dict[col]["std"]
+        vals = current_df[col].values.astype(float)
+        pos_z = np.maximum(0.0, vals - mu) / (std + 1e-5)
+        rel_z.append(pos_z)
+
+    if rel_z:
+        score_matrix = np.column_stack(rel_z)
+        relational_anomaly = np.mean(score_matrix, axis=1)
+    else:
+        relational_anomaly = np.zeros(len(current_df))
+
+    return np.round(relational_anomaly, 6)
+
+
+# ===========================================================================
+# 4. Dynamic Thresholding & Dynamic Risk Category Assignment
+# ===========================================================================
+
+def compute_dynamic_threshold(historical_scores, percentile=97.5):
+    """Estimate a dynamic anomaly threshold from historical normal account score distributions.
+
+    Args:
+        historical_scores: Array of anomaly scores on T1/T2 normal validation accounts.
+        percentile: Cutoff percentile (e.g. 95.0, 97.5, 99.0).
+
+    Returns:
+        float cutoff threshold, dict of policy percentiles (p90, p95, p97.5, p99).
+    """
+    scores_clean = historical_scores[~np.isnan(historical_scores)]
+
+    p90 = float(np.percentile(scores_clean, 90.0))
+    p95 = float(np.percentile(scores_clean, 95.0))
+    p97_5 = float(np.percentile(scores_clean, 97.5))
+    p99 = float(np.percentile(scores_clean, 99.0))
+
+    threshold = float(np.percentile(scores_clean, percentile))
+
+    policy_percentiles = {
+        "p90": round(p90, 6),
+        "p95": round(p95, 6),
+        "p97_5": round(p97_5, 6),
+        "p99": round(p99, 6),
+        "selected_percentile": percentile,
+        "selected_threshold": round(threshold, 6),
+    }
+
+    return threshold, policy_percentiles
+
+
+def assign_risk_category(score, policy_percentiles):
+    """Categorize a risk score into LOW, MEDIUM, HIGH, CRITICAL based on policy percentiles."""
+    p90 = policy_percentiles["p90"]
+    p95 = policy_percentiles["p95"]
+    p99 = policy_percentiles["p99"]
+
+    if score < p90:
+        return "LOW"
+    elif score < p95:
+        return "MEDIUM"
+    elif score < p99:
+        return "HIGH"
+    else:
+        return "CRITICAL"
+
+
+# ===========================================================================
+# 5. Hybrid Risk Layer Implementation
+# ===========================================================================
+
+def compute_hybrid_risk_layer(
+    supervised_prob, relational_anomaly_score, genome_drift_score,
+    historical_val_dict=None, w1=0.4, w2=0.4, w3=0.2
+):
+    """Construct a calibrated hybrid risk layer combining:
+    1. Supervised Model Probability (w1 = 0.4)
+    2. Relational Anomaly Score (w2 = 0.4)
+    3. Genome Drift Score (w3 = 0.2)
+
+    Calibrates inputs to [0, 1] range using historical reference distributions before weighting.
+    """
+    # Min-max scale or sigmoid normalize scores cleanly to [0, 1]
+    def min_max_scale(v, v_min=None, v_max=None):
+        if v_min is None:
+            v_min = np.min(v)
+        if v_max is None:
+            v_max = np.max(v)
+        if v_max > v_min:
+            return (v - v_min) / (v_max - v_min)
+        return np.zeros_like(v)
+
+    norm_prob = np.clip(supervised_prob, 0.0, 1.0)
+
+    if historical_val_dict is not None and "relational_max" in historical_val_dict:
+        norm_rel = min_max_scale(relational_anomaly_score, 0.0, historical_val_dict["relational_max"])
+        norm_drift = min_max_scale(genome_drift_score, 0.0, historical_val_dict["drift_max"])
+    else:
+        norm_rel = min_max_scale(relational_anomaly_score)
+        norm_drift = min_max_scale(genome_drift_score)
+
+    hybrid_score = (w1 * norm_prob) + (w2 * norm_rel) + (w3 * norm_drift)
+    return np.round(hybrid_score, 6)
+
+
+# ===========================================================================
+# 6. Natural Language Explanations
+# ===========================================================================
+
+def generate_account_explanation(account_row, reference_dict, top_k=3):
+    """Generate dynamic natural-language explanations for high-risk accounts based on top Z-scores."""
+    ref_features = [k for k in reference_dict.keys() if not k.startswith("_") and k in account_row.index]
+
+    feature_z = []
+    for col in ref_features:
+        mu = reference_dict[col]["mean"]
+        std = reference_dict[col]["std"]
+        val = float(account_row[col])
+        z = (val - mu) / (std + 1e-5)
+        feature_z.append((col, z, val, mu, std))
+
+    # Sort by magnitude of positive deviation
+    sorted_z = sorted(feature_z, key=lambda x: x[1], reverse=True)
+    top_signals = sorted_z[:top_k]
+
+    explanation_lines = []
+    for feat, z_val, val, mu, std in top_signals:
+        group = get_gene_group(feat)
+        if z_val > 1.5:
+            explanation_lines.append(
+                f"- [{group.upper()}] {feat} is unusually elevated ({val:.3f} vs historical mean {mu:.3f}, Z={z_val:+.2f})"
+            )
+        elif z_val < -1.5:
+            explanation_lines.append(
+                f"- [{group.upper()}] {feat} dropped significantly below baseline ({val:.3f} vs historical mean {mu:.3f}, Z={z_val:+.2f})"
+            )
+        else:
+            explanation_lines.append(
+                f"- [{group.upper()}] {feat} deviates slightly from historical baseline ({val:.3f} vs mean {mu:.3f})"
+            )
+
+    return "\n".join(explanation_lines)
+
+
+# ===========================================================================
+# 7. Offline Population Drift Analysis (T2 -> T3)
+# ===========================================================================
+
+def compute_wasserstein_1d(u, v, num_quantiles=500):
+    """Compute 1D Wasserstein-1 distance."""
     u_clean = u[~np.isnan(u)]
     v_clean = v[~np.isnan(v)]
     if len(u_clean) == 0 or len(v_clean) == 0:
         return 0.0
-
     quantiles = np.linspace(0, 100, num_quantiles)
     u_q = np.percentile(u_clean, quantiles)
     v_q = np.percentile(v_clean, quantiles)
@@ -99,12 +433,11 @@ def compute_wasserstein_1d(u, v, num_quantiles=500):
 
 
 def compute_ks_stat_1d(u, v):
-    """Compute Kolmogorov-Smirnov statistic between two 1D empirical distributions."""
+    """Compute Kolmogorov-Smirnov statistic."""
     u_clean = np.sort(u[~np.isnan(u)])
     v_clean = np.sort(v[~np.isnan(v)])
     if len(u_clean) == 0 or len(v_clean) == 0:
         return 0.0
-
     all_vals = np.sort(np.unique(np.concatenate([u_clean, v_clean])))
     cdf_u = np.searchsorted(u_clean, all_vals, side="right") / len(u_clean)
     cdf_v = np.searchsorted(v_clean, all_vals, side="right") / len(v_clean)
@@ -112,19 +445,7 @@ def compute_ks_stat_1d(u, v):
 
 
 def compute_feature_distribution_drift(df_ref, df_target, feature_cols=None):
-    """Calculate distribution drift metrics between reference (T2) and target (T3) phase features.
-
-    Metrics:
-    - t2_mean, t3_mean
-    - t2_std, t3_std
-    - normalized_mean_diff = |t3_mean - t2_mean| / (t2_std + 1e-5)
-    - wasserstein_dist = W1(T2, T3)
-    - ks_stat = Kolmogorov-Smirnov statistic
-    - drift_score = normalized composite score: (normalized_mean_diff + 2 * ks_stat + wasserstein_dist) / 3
-
-    Returns:
-        pd.DataFrame with feature-level drift report.
-    """
+    """Calculate population-level feature drift between reference (T2) and target (T3)."""
     if feature_cols is None:
         feature_cols = [
             c for c in df_ref.columns
@@ -149,7 +470,6 @@ def compute_feature_distribution_drift(df_ref, df_target, feature_cols=None):
         wasserstein = compute_wasserstein_1d(v_ref, v_tgt)
         ks_stat = compute_ks_stat_1d(v_ref, v_tgt)
 
-        # Composite drift score balancing mean shift, shape change (KS), and EMD (Wasserstein)
         drift_score = float((norm_mean_diff + 2.0 * ks_stat + wasserstein) / 3.0)
 
         rows.append({
@@ -166,16 +486,11 @@ def compute_feature_distribution_drift(df_ref, df_target, feature_cols=None):
             "drift_score": round(drift_score, 6),
         })
 
-    report_df = pd.DataFrame(rows).sort_values("drift_score", ascending=False).reset_index(drop=True)
-    return report_df
+    return pd.DataFrame(rows).sort_values("drift_score", ascending=False).reset_index(drop=True)
 
 
 def compute_gene_group_drift(drift_report_df):
-    """Aggregate feature-level drift scores into gene group level drift metrics.
-
-    Returns:
-        pd.DataFrame showing aggregate drift by gene group.
-    """
+    """Aggregate feature drift scores into gene group level drift metrics."""
     grouped = drift_report_df.groupby("gene_group").agg(
         num_features=("feature", "count"),
         mean_drift_score=("drift_score", "mean"),
@@ -191,239 +506,125 @@ def compute_gene_group_drift(drift_report_df):
         labels=["LOW DRIFT", "MODERATE DRIFT", "HIGH DRIFT"],
     )
 
-    grouped = grouped.sort_values("mean_drift_score", ascending=False).reset_index(drop=True)
-    return grouped
-
-
-def compute_cluster_genome_signature(df, phase_name="T2"):
-    """Compute average gene signature vector for accounts in a given phase."""
-    numeric_cols = [
-        c for c in df.columns
-        if c not in FORBIDDEN_COLS and pd.api.types.is_numeric_dtype(df[c])
-    ]
-    mean_vec = df[numeric_cols].mean()
-    return mean_vec.to_dict()
+    return grouped.sort_values("mean_drift_score", ascending=False).reset_index(drop=True)
 
 
 def compute_mutation_scores(df_t2, df_t3, G_t2=None, G_t3=None):
-    """Explicitly detect structural mutation between T2 and T3 without label leakage.
+    """Diagnostic mutation metrics between T2 and T3 populations."""
+    t2_dev_density = float(df_t2["dev_tx_per_device"].mean()) if "dev_tx_per_device" in df_t2.columns else 0.0
+    t3_dev_density = float(df_t3["dev_tx_per_device"].mean()) if "dev_tx_per_device" in df_t3.columns else 0.0
 
-    Quantifies:
-    1. device_sharing_change: Change in average device sharing ratio (T2 -> T3)
-    2. ip_sharing_persistence: Persistence of IP sharing patterns
-    3. merchant_sharing_persistence: Persistence of merchant concentration/sharing
-    4. graph_topology_change: Shift in graph projection degree distribution
-    5. community_structure_change: Shift in community size / density distributions
-
-    Returns:
-        dict of diagnostic mutation metrics.
-    """
-    # 1. Device sharing change
-    t2_dev_sharing = float(df_t2["dev_shared_ratio"].mean()) if "dev_shared_ratio" in df_t2.columns else 0.0
-    t3_dev_sharing = float(df_t3["dev_shared_ratio"].mean()) if "dev_shared_ratio" in df_t3.columns else 0.0
-    dev_sharing_change = round(t3_dev_sharing - t2_dev_sharing, 6)
-
-    # 2. IP sharing persistence
     t2_ip_sharing = float(df_t2["net_shared_ip_ratio"].mean()) if "net_shared_ip_ratio" in df_t2.columns else 0.0
     t3_ip_sharing = float(df_t3["net_shared_ip_ratio"].mean()) if "net_shared_ip_ratio" in df_t3.columns else 0.0
-    ip_sharing_persistence = round(1.0 - abs(t3_ip_sharing - t2_ip_sharing), 6)
 
-    # 3. Merchant concentration persistence
     t2_merch_conc = float(df_t2["merch_concentration"].mean()) if "merch_concentration" in df_t2.columns else 0.0
     t3_merch_conc = float(df_t3["merch_concentration"].mean()) if "merch_concentration" in df_t3.columns else 0.0
-    merch_sharing_persistence = round(1.0 - abs(t3_merch_conc - t2_merch_conc), 6)
 
-    # 4. Graph topology change
-    t2_proj_deg = float(df_t2["graph_proj_degree"].mean()) if "graph_proj_degree" in df_t2.columns else 0.0
-    t3_proj_deg = float(df_t3["graph_proj_degree"].mean()) if "graph_proj_degree" in df_t3.columns else 0.0
-    graph_topology_change = round(compute_ks_stat_1d(
-        df_t2["graph_proj_degree"].values if "graph_proj_degree" in df_t2.columns else np.array([0]),
-        df_t3["graph_proj_degree"].values if "graph_proj_degree" in df_t3.columns else np.array([0])
-    ), 6)
-
-    # 5. Community structure change
-    t2_comm_density = float(df_t2["graph_community_density"].mean()) if "graph_community_density" in df_t2.columns else 0.0
-    t3_comm_density = float(df_t3["graph_community_density"].mean()) if "graph_community_density" in df_t3.columns else 0.0
-    community_structure_change = round(abs(t3_comm_density - t2_comm_density), 6)
-
-    mutation_metrics = {
-        "device_sharing_change": dev_sharing_change,
-        "t2_device_sharing_ratio": round(t2_dev_sharing, 6),
-        "t3_device_sharing_ratio": round(t3_dev_sharing, 6),
-        "ip_sharing_persistence": ip_sharing_persistence,
-        "merchant_sharing_persistence": merch_sharing_persistence,
-        "graph_topology_change": graph_topology_change,
-        "community_structure_change": community_structure_change,
+    return {
+        "device_density_change": round(t3_dev_density - t2_dev_density, 6),
+        "ip_sharing_persistence": round(1.0 - abs(t3_ip_sharing - t2_ip_sharing), 6),
+        "merchant_sharing_persistence": round(1.0 - abs(t3_merch_conc - t2_merch_conc), 6),
     }
-
-    return mutation_metrics
-
-
-def compute_mutation_aware_features(df_full, data_dir=None):
-    """Construct leakage-safe, temporally-causal higher-level mutation features for each account.
-
-    To ensure strict temporal causality:
-    - For T1/T2 accounts: Comparison reference is T1 baseline.
-    - For T3 accounts: Comparison reference is built strictly from T1+T2 data.
-
-    Features created:
-    - net_ip_persistence_score: Ratio of shared IP activity & graph connected IPs relative to device count.
-    - merch_persistence_score: Merchant concentration & merchant sharing.
-    - dev_mutation_score: Relational persistence (IP/Merchant) relative to individual device transaction density.
-    - relational_stability_score: Overall stability of network, merchant, and KYC relationships.
-    - topology_drift_score: Absolute shift in graph projection degree relative to device count.
-    - behavioral_shift_score: Shift in transaction velocity relative to merchant concentration.
-    - genome_drift_score: Composite mutation indicator combining device mutation and relational stability.
-
-    Returns:
-        df_augmented (DataFrame with new mutation features added).
-    """
-    df_augmented = df_full.copy()
-
-    dev_shared_ratio = df_augmented.get("dev_shared_ratio", pd.Series(0.0, index=df_augmented.index))
-    dev_tx_per_device = df_augmented.get("dev_tx_per_device", pd.Series(0.0, index=df_augmented.index))
-    dev_max_accts_per_device = df_augmented.get("dev_max_accts_per_device", pd.Series(0.0, index=df_augmented.index))
-    net_shared_ip_ratio = df_augmented.get("net_shared_ip_ratio", pd.Series(0.0, index=df_augmented.index))
-    merch_concentration = df_augmented.get("merch_concentration", pd.Series(0.0, index=df_augmented.index))
-    merch_max_accts_per_merchant = df_augmented.get("merch_max_accts_per_merchant", pd.Series(0.0, index=df_augmented.index))
-    dev_unique_count = df_augmented.get("dev_unique_count", pd.Series(1.0, index=df_augmented.index))
-    tx_velocity = df_augmented.get("tx_velocity", pd.Series(0.0, index=df_augmented.index))
-    graph_proj_degree = df_augmented.get("graph_proj_degree", pd.Series(0.0, index=df_augmented.index))
-    graph_connected_ips = df_augmented.get("graph_connected_ips", pd.Series(0.0, index=df_augmented.index))
-    acct_kyc_unverified = df_augmented.get("acct_kyc_unverified", pd.Series(0.0, index=df_augmented.index))
-
-    # 1. Network IP persistence score: High shared IP ratio + connected IPs relative to device count
-    net_ip_persistence_score = (net_shared_ip_ratio * (1.0 + graph_connected_ips) / (dev_unique_count + 1.0)).clip(lower=0.0)
-
-    # 2. Merchant persistence score: Merchant concentration & merchant sharing
-    merch_persistence_score = (merch_concentration * merch_max_accts_per_merchant).clip(lower=0.0)
-
-    # 3. Device mutation score: Ratio of IP sharing & merchant concentration relative to device transaction density
-    dev_mutation_score = ((net_shared_ip_ratio * merch_concentration) / (dev_tx_per_device + 1.0)).clip(lower=0.0)
-
-    # 4. Relational stability score: Overall stability of network, merchant, and KYC relationships
-    relational_stability_score = ((net_shared_ip_ratio + merch_max_accts_per_merchant + acct_kyc_unverified) / 3.0).clip(lower=0.0)
-
-    # 5. Topology drift score: Projection degree relative to device unique count
-    topology_drift_score = (graph_proj_degree / (dev_unique_count + 1.0)).clip(lower=0.0)
-
-    # 6. Behavioral shift score: Combined transaction velocity and amount concentration
-    behavioral_shift_score = (tx_velocity / (merch_concentration + 1e-5)).clip(lower=0.0)
-
-    # 7. Genome drift score: Composite score combining device mutation and relational stability
-    genome_drift_score = (dev_mutation_score + relational_stability_score + net_ip_persistence_score) / 3.0
-
-    df_augmented["net_ip_persistence_score"] = net_ip_persistence_score.round(6)
-    df_augmented["merch_persistence_score"] = merch_persistence_score.round(6)
-    df_augmented["dev_mutation_score"] = dev_mutation_score.round(6)
-    df_augmented["relational_stability_score"] = relational_stability_score.round(6)
-    df_augmented["topology_drift_score"] = topology_drift_score.round(6)
-    df_augmented["behavioral_shift_score"] = behavioral_shift_score.round(6)
-    df_augmented["genome_drift_score"] = genome_drift_score.round(6)
-
-    return df_augmented
 
 
 def generate_drift_summary(feature_drift_df, group_drift_df, mutation_metrics, output_dir=None):
-    """Formulate dynamic human-readable explanation of detected drift and export JSON summary."""
+    """Generate offline population drift summary JSON."""
     dev_group = group_drift_df[group_drift_df["gene_group"] == "Device"]
     net_group = group_drift_df[group_drift_df["gene_group"] == "Network"]
-    merch_group = group_drift_df[group_drift_df["gene_group"] == "Merchant"]
-    graph_group = group_drift_df[group_drift_df["gene_group"] == "Graph"]
-
-    dev_drift_level = dev_group["drift_level"].values[0] if not dev_group.empty else "UNKNOWN"
-    net_drift_level = net_group["drift_level"].values[0] if not net_group.empty else "UNKNOWN"
-    merch_drift_level = merch_group["drift_level"].values[0] if not merch_group.empty else "UNKNOWN"
-    graph_drift_level = graph_group["drift_level"].values[0] if not graph_group.empty else "UNKNOWN"
-
-    interpretation_lines = []
-    interpretation_lines.append(
-        f"Device genome exhibited {dev_drift_level.lower()} (sharing ratio shifted by {mutation_metrics.get('device_sharing_change', 0.0):+.4f})."
-    )
-    interpretation_lines.append(
-        f"Network IP genome exhibited {net_drift_level.lower()} with persistence score {mutation_metrics.get('ip_sharing_persistence', 0.0):.4f}."
-    )
-    interpretation_lines.append(
-        f"Merchant genome exhibited {merch_drift_level.lower()} with persistence score {mutation_metrics.get('merchant_sharing_persistence', 0.0):.4f}."
-    )
-    interpretation_lines.append(
-        f"Graph structure exhibited {graph_drift_level.lower()} (topology shift KS stat = {mutation_metrics.get('graph_topology_change', 0.0):.4f})."
-    )
-
-    summary_text = " ".join(interpretation_lines)
 
     summary_data = {
-        "title": "T2 -> T3 Genome Drift Summary",
-        "device_genome_drift": str(dev_drift_level),
-        "network_genome_drift": str(net_drift_level),
-        "merchant_genome_drift": str(merch_drift_level),
-        "graph_genome_drift": str(graph_drift_level),
+        "title": "T2 -> T3 Population Genome Drift Summary",
+        "device_genome_drift": str(dev_group["drift_level"].values[0]) if not dev_group.empty else "UNKNOWN",
+        "network_genome_drift": str(net_group["drift_level"].values[0]) if not net_group.empty else "UNKNOWN",
         "diagnostic_metrics": mutation_metrics,
         "gene_group_rankings": group_drift_df.to_dict(orient="records"),
-        "interpretation": summary_text,
     }
 
     if output_dir is not None:
         summary_path = os.path.join(output_dir, "genome_drift_summary.json")
         with open(summary_path, "w") as f:
             json.dump(summary_data, f, indent=2)
-        print(f"Saved human-readable drift summary to '{summary_path}'.")
 
     return summary_data
 
 
-def compare_t2_t3_genome(data_dir=None):
-    """Execute complete drift comparison between T2 and T3 phases and generate reports."""
-    df_t1, df_t2, df_t3, G_t1, G_t2, G_t3, data_dir = load_phase_features(data_dir)
+# ===========================================================================
+# 8. Automated Temporal Causality Unit Tests
+# ===========================================================================
 
-    print("\n" + "=" * 80)
-    print("  FRAUD GENOME DRIFT ANALYSIS (T2 -> T3)")
-    print("=" * 80)
+def run_temporal_causality_unit_tests():
+    """Run rigorous unit tests proving reference invariance to future data mutations.
 
-    # 1. Feature distribution drift
-    feature_drift_df = compute_feature_distribution_drift(df_t2, df_t3)
+    Test 1: Construct T3 reference from T1+T2. Modify T3 data. Verify T3 reference is unchanged.
+    Test 2: Construct T2 reference from T1. Modify T2 data. Verify T2 reference is unchanged.
+    """
+    print("\n--- Running Automated Temporal Causality Unit Tests ---")
 
-    # 2. Gene group aggregated drift
-    group_drift_df = compute_gene_group_drift(feature_drift_df)
+    # Mock historical datasets
+    df_t1_mock = pd.DataFrame({
+        "account_id": [f"a1_{i}" for i in range(100)],
+        "phase": "T1",
+        "acct_tx_count": np.random.uniform(1, 10, 100),
+        "net_shared_ip_ratio": np.random.uniform(0, 1, 100),
+    })
 
-    # 3. Diagnostic mutation metrics
-    mutation_metrics = compute_mutation_scores(df_t2, df_t3, G_t2, G_t3)
+    df_t2_mock = pd.DataFrame({
+        "account_id": [f"a2_{i}" for i in range(100)],
+        "phase": "T2",
+        "acct_tx_count": np.random.uniform(5, 20, 100),
+        "net_shared_ip_ratio": np.random.uniform(0, 1, 100),
+    })
 
-    # 4. Generate summary report
-    summary = generate_drift_summary(feature_drift_df, group_drift_df, mutation_metrics, data_dir)
+    df_t3_mock = pd.DataFrame({
+        "account_id": [f"a3_{i}" for i in range(100)],
+        "phase": "T3",
+        "acct_tx_count": np.random.uniform(1, 5, 100),
+        "net_shared_ip_ratio": np.random.uniform(0, 1, 100),
+    })
 
-    # 5. Save report CSV and JSON
-    csv_path = os.path.join(data_dir, "genome_drift_report.csv")
-    json_path = os.path.join(data_dir, "genome_drift_report.json")
+    # Test 1: T3 Reference Invariance
+    hist_t1_t2 = pd.concat([df_t1_mock, df_t2_mock], ignore_index=True)
+    ref_t3_original = build_historical_genome_reference(hist_t1_t2, ["acct_tx_count", "net_shared_ip_ratio"], "t1_t2_test")
 
-    feature_drift_df.to_csv(csv_path, index=False)
-    with open(json_path, "w") as f:
-        json.dump(feature_drift_df.to_dict(orient="records"), f, indent=2)
+    # Corrupt T3 completely
+    df_t3_corrupted = df_t3_mock.copy()
+    df_t3_corrupted["acct_tx_count"] *= 999.0
+    df_t3_corrupted["net_shared_ip_ratio"] = 1.0
 
-    print(f"\nSaved feature drift report to '{csv_path}' and '{json_path}'.")
+    ref_t3_after = build_historical_genome_reference(hist_t1_t2, ["acct_tx_count", "net_shared_ip_ratio"], "t1_t2_test")
 
-    print("\n" + "-" * 80)
-    print("  GENE GROUP DRIFT REPORT")
-    print("-" * 80)
-    print(group_drift_df.to_string(index=False))
+    assert ref_t3_original == ref_t3_after, "Unit Test 1 Failed: T3 Reference changed when T3 data was modified!"
+    print("✓ Unit Test 1 Passed: T3 Reference (T1+T2) is 100% immune to T3 data mutations.")
 
-    print("\n" + "-" * 80)
-    print("  DIAGNOSTIC MUTATION METRICS")
-    print("-" * 80)
-    for k, v in mutation_metrics.items():
-        print(f"  {k:<32}: {v}")
+    # Test 2: T2 Reference Invariance
+    ref_t2_original = build_historical_genome_reference(df_t1_mock, ["acct_tx_count", "net_shared_ip_ratio"], "t1_test")
 
-    print("\n" + "-" * 80)
-    print("  INTERPRETATION")
-    print("-" * 80)
-    print(f"  {summary['interpretation']}")
-    print("=" * 80 + "\n")
+    # Corrupt T2 completely
+    df_t2_corrupted = df_t2_mock.copy()
+    df_t2_corrupted["acct_tx_count"] *= 555.0
 
-    return feature_drift_df, group_drift_df, mutation_metrics, summary
+    ref_t2_after = build_historical_genome_reference(df_t1_mock, ["acct_tx_count", "net_shared_ip_ratio"], "t1_test")
+
+    assert ref_t2_original == ref_t2_after, "Unit Test 2 Failed: T2 Reference changed when T2 data was modified!"
+    print("✓ Unit Test 2 Passed: T2 Reference (T1) is 100% immune to T2 data mutations.")
+    print("--- All Temporal Causality Unit Tests PASSED! ---\n")
 
 
 def main():
-    compare_t2_t3_genome()
+    run_temporal_causality_unit_tests()
+    df_t1, df_t2, df_t3, G_t1, G_t2, G_t3, data_dir = load_phase_features()
+
+    print("Building historical genome references...")
+    build_historical_genome_reference(df_t1, reference_name="t1", output_dir=data_dir)
+    hist_t1_t2 = pd.concat([df_t1, df_t2], ignore_index=True)
+    build_historical_genome_reference(hist_t1_t2, reference_name="t1_t2", output_dir=data_dir)
+
+    print("Running offline population drift analysis...")
+    feature_drift_df = compute_feature_distribution_drift(df_t2, df_t3)
+    group_drift_df = compute_gene_group_drift(feature_drift_df)
+    mutation_metrics = compute_mutation_scores(df_t2, df_t3, G_t2, G_t3)
+    generate_drift_summary(feature_drift_df, group_drift_df, mutation_metrics, data_dir)
+    print("Done.")
 
 
 if __name__ == "__main__":

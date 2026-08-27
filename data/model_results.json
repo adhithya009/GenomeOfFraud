@@ -57,223 +57,223 @@
     {
       "feature_set": "Baseline",
       "model": "Logistic Regression",
-      "pr_auc": 0.5043,
-      "roc_auc": 0.7637,
-      "precision": 0.3333,
+      "pr_auc": 0.5042,
+      "roc_auc": 0.745,
+      "precision": 0.2,
       "recall": 0.5,
-      "f1": 0.4,
+      "f1": 0.2857,
       "best_threshold": 0.9
     },
     {
       "feature_set": "Baseline",
       "model": "Random Forest",
       "pr_auc": 0.5022,
-      "roc_auc": 0.7204,
-      "precision": 0.6667,
+      "roc_auc": 0.7174,
+      "precision": 1.0,
       "recall": 0.5,
-      "f1": 0.5714,
-      "best_threshold": 0.45
+      "f1": 0.6667,
+      "best_threshold": 0.4
     },
     {
       "feature_set": "Baseline",
       "model": "XGBoost",
-      "pr_auc": 0.5032,
-      "roc_auc": 0.6978,
+      "pr_auc": 0.2947,
+      "roc_auc": 0.6763,
       "precision": 0.6667,
       "recall": 0.5,
       "f1": 0.5714,
-      "best_threshold": 0.45
+      "best_threshold": 0.75
     },
     {
       "feature_set": "FraudGenome",
       "model": "Logistic Regression",
-      "pr_auc": 0.5169,
-      "roc_auc": 0.9322,
-      "precision": 0.4,
+      "pr_auc": 0.5101,
+      "roc_auc": 0.8446,
+      "precision": 0.2857,
       "recall": 0.5,
-      "f1": 0.4444,
-      "best_threshold": 0.6
+      "f1": 0.3636,
+      "best_threshold": 0.85
     },
     {
       "feature_set": "FraudGenome",
       "model": "Random Forest",
-      "pr_auc": 0.512,
-      "roc_auc": 0.8435,
+      "pr_auc": 0.5022,
+      "roc_auc": 0.7148,
       "precision": 1.0,
       "recall": 0.5,
       "f1": 0.6667,
-      "best_threshold": 0.45
+      "best_threshold": 0.4
     },
     {
       "feature_set": "FraudGenome",
       "model": "XGBoost",
-      "pr_auc": 0.505,
-      "roc_auc": 0.8011,
-      "precision": 1.0,
+      "pr_auc": 0.4226,
+      "roc_auc": 0.8309,
+      "precision": 0.5,
       "recall": 0.5,
-      "f1": 0.6667,
-      "best_threshold": 0.6
+      "f1": 0.5,
+      "best_threshold": 0.35
     }
   ],
   "best_validation_model": {
     "feature_set": "FraudGenome",
     "model": "Logistic Regression",
-    "val_pr_auc": 0.5169,
-    "optimal_threshold": 0.6
+    "val_pr_auc": 0.5101,
+    "optimal_threshold": 0.85
   },
   "final_test_evaluation": {
-    "pr_auc": 0.6175,
-    "roc_auc": 0.9797,
-    "precision": 0.6,
+    "pr_auc": 0.6548,
+    "roc_auc": 0.9942,
+    "precision": 0.3,
     "recall": 0.75,
-    "f1": 0.6667,
+    "f1": 0.4286,
     "confusion_matrix": [
       [
-        897,
-        2
+        892,
+        7
       ],
       [
         1,
         3
       ]
     ],
-    "tn": 897,
-    "fp": 2,
+    "tn": 892,
+    "fp": 7,
     "fn": 1,
     "tp": 3,
-    "fp_count": 2,
+    "fp_count": 7,
     "fn_count": 1,
-    "fpr": 0.002225,
+    "fpr": 0.007786,
     "fraud_detection_rate": 0.75
   },
   "test_comparison": {
     "baseline_xgb": {
-      "pr_auc": 0.7375,
-      "roc_auc": 0.9953,
-      "precision": 1.0,
-      "recall": 0.25,
-      "f1": 0.4,
-      "confusion_matrix": [
-        [
-          899,
-          0
-        ],
-        [
-          3,
-          1
-        ]
-      ],
-      "tn": 899,
-      "fp": 0,
-      "fn": 3,
-      "tp": 1,
-      "fp_count": 0,
-      "fn_count": 3,
-      "fpr": 0.0,
-      "fraud_detection_rate": 0.25
-    },
-    "fraudgenome_xgb": {
-      "pr_auc": 0.7929,
-      "roc_auc": 0.9986,
-      "precision": 1.0,
+      "pr_auc": 0.5513,
+      "roc_auc": 0.9894,
+      "precision": 0.5,
       "recall": 0.5,
-      "f1": 0.6667,
+      "f1": 0.5,
       "confusion_matrix": [
         [
-          899,
-          0
+          897,
+          2
         ],
         [
           2,
           2
         ]
       ],
-      "tn": 899,
-      "fp": 0,
+      "tn": 897,
+      "fp": 2,
       "fn": 2,
       "tp": 2,
-      "fp_count": 0,
+      "fp_count": 2,
       "fn_count": 2,
-      "fpr": 0.0,
+      "fpr": 0.002225,
       "fraud_detection_rate": 0.5
     },
-    "pr_auc_improvement": 0.0554,
-    "f1_improvement": 0.2667
+    "fraudgenome_xgb": {
+      "pr_auc": 0.5451,
+      "roc_auc": 0.9867,
+      "precision": 0.4,
+      "recall": 0.5,
+      "f1": 0.4444,
+      "confusion_matrix": [
+        [
+          896,
+          3
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "tn": 896,
+      "fp": 3,
+      "fn": 2,
+      "tp": 2,
+      "fp_count": 3,
+      "fn_count": 2,
+      "fpr": 0.003337,
+      "fraud_detection_rate": 0.5
+    },
+    "pr_auc_improvement": -0.0062,
+    "f1_improvement": -0.0556
   },
   "top_15_features": [
     {
       "feature": "graph_connected_ips",
-      "importance": 0.4521421194076538,
+      "importance": 0.45867466926574707,
       "gene_group": "Graph"
     },
     {
       "feature": "net_unique_ip_count",
-      "importance": 0.195744127035141,
+      "importance": 0.23211967945098877,
       "gene_group": "Network"
-    },
-    {
-      "feature": "acct_tx_velocity",
-      "importance": 0.08108901977539062,
-      "gene_group": "Account"
-    },
-    {
-      "feature": "tx_time_spread_hours",
-      "importance": 0.0373677983880043,
-      "gene_group": "Transaction"
-    },
-    {
-      "feature": "acct_tx_count",
-      "importance": 0.032743897289037704,
-      "gene_group": "Account"
     },
     {
       "feature": "net_tx_per_ip",
-      "importance": 0.025676164776086807,
+      "importance": 0.05484709143638611,
       "gene_group": "Network"
     },
     {
-      "feature": "merch_top_category",
-      "importance": 0.015044902451336384,
-      "gene_group": "Merchant"
-    },
-    {
-      "feature": "merch_concentration",
-      "importance": 0.014478431083261967,
-      "gene_group": "Merchant"
-    },
-    {
-      "feature": "acct_amount_total",
-      "importance": 0.014408894814550877,
-      "gene_group": "Account"
-    },
-    {
-      "feature": "tx_amount_concentration",
-      "importance": 0.012888636440038681,
+      "feature": "tx_time_spread_hours",
+      "importance": 0.025241389870643616,
       "gene_group": "Transaction"
     },
     {
-      "feature": "net_ip_concentration",
-      "importance": 0.012358731590211391,
-      "gene_group": "Network"
+      "feature": "tx_amount_concentration",
+      "importance": 0.022931231185793877,
+      "gene_group": "Transaction"
     },
     {
-      "feature": "graph_proj_weighted_degree",
-      "importance": 0.011132552288472652,
+      "feature": "merch_top_category",
+      "importance": 0.01875040866434574,
+      "gene_group": "Merchant"
+    },
+    {
+      "feature": "acct_kyc_unverified",
+      "importance": 0.018634317442774773,
+      "gene_group": "Account"
+    },
+    {
+      "feature": "acct_tx_count",
+      "importance": 0.01766642928123474,
+      "gene_group": "Account"
+    },
+    {
+      "feature": "acct_tx_velocity",
+      "importance": 0.015930289402604103,
+      "gene_group": "Account"
+    },
+    {
+      "feature": "acct_amount_total",
+      "importance": 0.011161779053509235,
+      "gene_group": "Account"
+    },
+    {
+      "feature": "dev_tx_per_device",
+      "importance": 0.010949267074465752,
+      "gene_group": "Device"
+    },
+    {
+      "feature": "graph_degree",
+      "importance": 0.01066649705171585,
       "gene_group": "Graph"
     },
     {
       "feature": "acct_amount_std",
-      "importance": 0.009803177788853645,
+      "importance": 0.010127831250429153,
       "gene_group": "Account"
     },
     {
-      "feature": "dev_unique_count",
-      "importance": 0.009031135588884354,
+      "feature": "dev_shared_count",
+      "importance": 0.00940448697656393,
       "gene_group": "Device"
     },
     {
-      "feature": "tx_weekend_ratio",
-      "importance": 0.008528604172170162,
+      "feature": "tx_velocity",
+      "importance": 0.008850795216858387,
       "gene_group": "Transaction"
     }
   ],
@@ -308,8 +308,8 @@
       "num_features": 25,
       "val_tuned_threshold": 0.05,
       "t3_evaluation": {
-        "pr_auc": 0.1241,
-        "roc_auc": 0.808,
+        "pr_auc": 0.129,
+        "roc_auc": 0.7533,
         "precision": 1.0,
         "recall": 0.1,
         "f1": 0.1818,
@@ -398,8 +398,8 @@
       "num_features": 23,
       "val_tuned_threshold": 0.05,
       "t3_evaluation": {
-        "pr_auc": 0.2489,
-        "roc_auc": 0.9221,
+        "pr_auc": 0.2444,
+        "roc_auc": 0.8388,
         "precision": 1.0,
         "recall": 0.1,
         "f1": 0.1818,
@@ -422,6 +422,146 @@
         "fpr": 0.0,
         "fraud_detection_rate": 0.1
       }
+    },
+    "Exp E: Historical Genome Drift": {
+      "feature_set_name": "Exp E: Historical Genome Drift",
+      "num_features": 8,
+      "val_tuned_threshold": 0.05,
+      "t3_evaluation": {
+        "pr_auc": 0.1137,
+        "roc_auc": 0.7279,
+        "precision": 0.25,
+        "recall": 0.1,
+        "f1": 0.1429,
+        "confusion_matrix": [
+          [
+            1987,
+            3
+          ],
+          [
+            9,
+            1
+          ]
+        ],
+        "tn": 1987,
+        "fp": 3,
+        "fn": 9,
+        "tp": 1,
+        "fp_count": 3,
+        "fn_count": 9,
+        "fpr": 0.001508,
+        "fraud_detection_rate": 0.1
+      }
+    },
+    "Exp F: Relational Anomaly Score": {
+      "feature_set_name": "Exp F: Relational Anomaly Score",
+      "num_features": 24,
+      "val_tuned_threshold": 1.0644249000000001,
+      "t3_evaluation": {
+        "pr_auc": 0.0939,
+        "roc_auc": 0.8939,
+        "precision": 0.0658,
+        "recall": 0.5,
+        "f1": 0.1163,
+        "confusion_matrix": [
+          [
+            1919,
+            71
+          ],
+          [
+            5,
+            5
+          ]
+        ],
+        "tn": 1919,
+        "fp": 71,
+        "fn": 5,
+        "tp": 5,
+        "fp_count": 71,
+        "fn_count": 5,
+        "fpr": 0.035678,
+        "fraud_detection_rate": 0.5
+      }
+    },
+    "Exp G: Hybrid Risk Layer": {
+      "feature_set_name": "Exp G: Hybrid Risk Layer",
+      "num_features": 61,
+      "val_tuned_threshold": 0.30067455,
+      "t3_evaluation": {
+        "pr_auc": 0.2293,
+        "roc_auc": 0.8876,
+        "precision": 0.0725,
+        "recall": 0.5,
+        "f1": 0.1266,
+        "confusion_matrix": [
+          [
+            1926,
+            64
+          ],
+          [
+            5,
+            5
+          ]
+        ],
+        "tn": 1926,
+        "fp": 64,
+        "fn": 5,
+        "tp": 5,
+        "fp_count": 64,
+        "fn_count": 5,
+        "fpr": 0.032161,
+        "fraud_detection_rate": 0.5
+      }
     }
+  },
+  "relational_anomaly_experiments": {
+    "pr_auc": 0.0939,
+    "roc_auc": 0.8939,
+    "precision": 0.0658,
+    "recall": 0.5,
+    "f1": 0.1163,
+    "confusion_matrix": [
+      [
+        1919,
+        71
+      ],
+      [
+        5,
+        5
+      ]
+    ],
+    "tn": 1919,
+    "fp": 71,
+    "fn": 5,
+    "tp": 5,
+    "fp_count": 71,
+    "fn_count": 5,
+    "fpr": 0.035678,
+    "fraud_detection_rate": 0.5
+  },
+  "hybrid_risk_experiments": {
+    "pr_auc": 0.2293,
+    "roc_auc": 0.8876,
+    "precision": 0.0725,
+    "recall": 0.5,
+    "f1": 0.1266,
+    "confusion_matrix": [
+      [
+        1926,
+        64
+      ],
+      [
+        5,
+        5
+      ]
+    ],
+    "tn": 1926,
+    "fp": 64,
+    "fn": 5,
+    "tp": 5,
+    "fp_count": 64,
+    "fn_count": 5,
+    "fpr": 0.032161,
+    "fraud_detection_rate": 0.5
   }
 }

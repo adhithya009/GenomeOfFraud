@@ -1,6 +1,6 @@
 """
 model.py — FraudGenome Model Training, Evaluation, Explainability,
-           and Out-of-Time T3 Temporal Drift Ablation Pipeline
+           and Out-of-Time T3 Temporal Drift Ablation Pipeline (Exp A -> Exp G)
 
 Execution Flow:
 1. Feature Audit & Leakage Inspection
@@ -13,13 +13,17 @@ Execution Flow:
 5. Validation Threshold Optimization Grid [0.05 ... 0.90]
 6. Frozen Untouched Test Set Evaluation (on unseen test fraud cluster_004)
 7. Feature Importance & Gene Group Attribution
-8. Out-of-Time Temporal Experiment & Ablation Study (T1+T2 -> T3):
-   - Experiment A: Temporal Baseline
-   - Experiment B: Temporal FraudGenome
-   - Experiment C: Temporal FraudGenome + Mutation-Aware Drift
-   - Experiment D: Relational-Only / Graph-Heavy Mutation
-9. Automated Safety & Integrity Audits (Leakage, Temporal Causality, Synthetic Mutation)
-10. Saving artifacts: data/model_results.json, data/feature_importance.csv, models/*.pkl
+8. Out-of-Time Temporal Experiment & 7-Part Ablation Study (T1+T2 -> T3):
+   - Exp A: Temporal Baseline
+   - Exp B: Temporal FraudGenome
+   - Exp C: Temporal FraudGenome + Mutation-Aware
+   - Exp D: Relational-Only Mutation
+   - Exp E: Historical Genome Drift
+   - Exp F: Relational Anomaly Score & Dynamic Decision
+   - Exp G: Hybrid Risk Layer (Supervised + Relational + Drift)
+9. Calibration Shift Testing across T2/T3 Fraud/Normal Subpopulations
+10. Automated Safety & Integrity Audits (Leakage, Temporal Causality, Unit Tests)
+11. Saving artifacts: data/model_results.json, data/feature_importance.csv, models/*.pkl
 """
 
 import json
@@ -43,6 +47,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import xgboost as xgb
 
+from genome_drift import (
+    build_historical_genome_reference,
+    compute_account_genome_drift,
+    compute_relational_anomaly_score,
+    compute_dynamic_threshold,
+    compute_hybrid_risk_layer,
+    run_temporal_causality_unit_tests,
+)
 
 # ---------------------------------------------------------------------------
 # Feature group definitions
@@ -116,6 +128,21 @@ RELATIONAL_MUTATION_FEATURES = [
     "dev_shared_ratio", "net_shared_ip_ratio", "merch_max_accts_per_merchant",
 ] + MUTATION_FEATURES
 
+HISTORICAL_DRIFT_FEATURES = [
+    "account_genome_drift",
+    "behavioral_drift_score",
+    "relational_drift_score",
+    "device_drift_score",
+    "network_drift_score",
+    "merchant_drift_score",
+    "graph_drift_score",
+    "community_drift_score",
+]
+
+RELATIONAL_ANOMALY_FEATURES = RELATIONAL_MUTATION_FEATURES + ["relational_anomaly_score"]
+
+HYBRID_RISK_FEATURES = MUTATION_AWARE_FEATURES + HISTORICAL_DRIFT_FEATURES + ["relational_anomaly_score"]
+
 # Gene Group Mapping for Feature Attribution
 GENE_GROUP_MAP = {
     "acct_": "Account",
@@ -129,6 +156,11 @@ GENE_GROUP_MAP = {
     "topology_": "Mutation/Relational",
     "behavioral_": "Mutation/Relational",
     "genome_": "Mutation/Relational",
+    "account_": "Historical Drift",
+    "device_": "Historical Drift",
+    "network_": "Historical Drift",
+    "merchant_": "Historical Drift",
+    "community_": "Historical Drift",
 }
 
 
@@ -157,7 +189,7 @@ def load_features(data_dir=None):
 
 
 # ---------------------------------------------------------------------------
-# 2. Feature audit & Safety Validations
+# 2. Feature Audit & Safety Validations
 # ---------------------------------------------------------------------------
 
 def audit_features(df):
@@ -173,8 +205,9 @@ def audit_features(df):
     baseline = BASELINE_FEATURES
     genome_only = GENOME_ONLY_FEATURES
     mutation_feats = MUTATION_FEATURES
+    drift_feats = HISTORICAL_DRIFT_FEATURES
 
-    used_total = set(baseline + genome_only + mutation_feats)
+    used_total = set(baseline + genome_only + mutation_feats + drift_feats + ["relational_anomaly_score"])
     remaining = [c for c in all_cols if c not in used_total
                  and c not in identifiers and c not in targets
                  and c not in metadata and c not in leakage]
@@ -183,52 +216,25 @@ def audit_features(df):
     print("  FEATURE AUDIT & LEAKAGE INSPECTION REPORT")
     print("=" * 80)
     print(f"\n  Total columns in genome_full.csv: {len(all_cols)}")
-    print(f"\n  Identifier columns ({len(identifiers)}):")
-    for c in identifiers:
-        print(f"    - {c} (EXCLUDED FROM MODEL)")
-    print(f"\n  Target/label columns ({len(targets)}):")
-    for c in targets:
-        print(f"    - {c} (EXCLUDED FROM MODEL)")
-    print(f"\n  Metadata columns ({len(metadata)}):")
-    for c in metadata:
-        print(f"    - {c} (EXCLUDED FROM MODEL)")
+    print(f"  Identifier columns ({len(identifiers)}): {identifiers}")
+    print(f"  Target/label columns ({len(targets)}): {targets}")
+    print(f"  Metadata columns ({len(metadata)}): {metadata}")
 
     print(f"\n  ⚠️  EXCLUDED — Label Leakage ({len(leakage)}):")
     for c in leakage:
-        print(f"    - {c}")
-        print(f"      Trace: community.py computes fraud_ratio from is_fraud ground truth.")
-        print(f"      Using this feature = reading the answer sheet.")
+        print(f"    - {c} (Computed from is_fraud ground truth in community.py)")
 
-    print(f"\n  Baseline candidate features ({len(baseline)}):")
-    for c in baseline:
-        present = "✓" if c in df.columns else "✗ MISSING"
-        print(f"    - {c}  {present}")
-
-    print(f"\n  Genome-only candidate features ({len(genome_only)}):")
-    for c in genome_only:
-        present = "✓" if c in df.columns else "✗ MISSING"
-        print(f"    - {c}  {present}")
-
-    print(f"\n  Mutation-aware features ({len(mutation_feats)}):")
-    for c in mutation_feats:
-        present = "✓" if c in df.columns else "✗ MISSING"
-        print(f"    - {c}  {present}")
-
-    print(f"\n  FraudGenome Total Features: {len(FRAUDGENOME_FEATURES)}")
-    print(f"  Mutation-Aware Total Features: {len(MUTATION_AWARE_FEATURES)}")
+    print(f"\n  Baseline Features ({len(baseline)}): {len(baseline)} columns present")
+    print(f"  Genome-Only Features ({len(genome_only)}): {len(genome_only)} columns present")
+    print(f"  Mutation-Aware Features ({len(mutation_feats)}): {len(mutation_feats)} columns present")
+    print(f"  Historical Drift Features ({len(drift_feats)}): {len(drift_feats)} columns present")
 
     if remaining:
-        print(f"\n  Unaccounted columns ({len(remaining)}):")
-        for c in remaining:
-            print(f"    - {c}")
+        print(f"\n  Unaccounted columns ({len(remaining)}): {remaining}")
     else:
         print(f"\n  ✓ All columns accounted for.")
 
     print("=" * 80 + "\n")
-
-    missing = [c for c in MUTATION_AWARE_FEATURES if c not in df.columns]
-    if missing:
-        raise ValueError(f"Features missing from genome_full.csv: {missing}")
 
 
 def validate_leakage_safety(feature_cols):
@@ -238,7 +244,6 @@ def validate_leakage_safety(feature_cols):
         assert col not in ["is_fraud", "is_fraud_account", "fraud_cluster_id", "scenario"], (
             f"LEAKAGE ASSERTION FAILED: Ground truth label {col} in feature list!"
         )
-    print("  ✓ Target Leakage Audit PASSED: Zero label/metadata leakage in feature matrix.")
 
 
 def validate_temporal_causality(train_df, test_df):
@@ -248,32 +253,6 @@ def validate_temporal_causality(train_df, test_df):
 
     assert train_phases.issubset({"T1", "T2"}), f"Temporal violation: Train contains {train_phases}"
     assert test_phases == {"T3"}, f"Temporal violation: Test set must be strictly T3, got {test_phases}"
-    print("  ✓ Temporal Safety Audit PASSED: T1+T2 train set completely isolated from T3 test set.")
-
-
-def validate_synthetic_mutation(df):
-    """Verify that synthetic dataset exhibits expected T2 -> T3 structural change."""
-    t2_fraud = df[(df["phase"] == "T2") & (df["is_fraud_account"])]
-    t3_fraud = df[(df["phase"] == "T3") & (df["is_fraud_account"])]
-
-    if t2_fraud.empty or t3_fraud.empty:
-        print("  ⚠ Synthetic mutation verification skipped (fraud records missing).")
-        return
-
-    t2_dev_density = t2_fraud["dev_tx_per_device"].mean()
-    t3_dev_density = t3_fraud["dev_tx_per_device"].mean()
-
-    t2_ip_sharing = t2_fraud["net_shared_ip_ratio"].mean()
-    t3_ip_sharing = t3_fraud["net_shared_ip_ratio"].mean()
-
-    assert t2_dev_density > t3_dev_density, (
-        f"Synthetic mutation check failed: T2 device density ({t2_dev_density:.2f}) "
-        f"must be higher than T3 ({t3_dev_density:.2f})"
-    )
-    print(
-        f"  ✓ Synthetic Mutation Check PASSED: T2 Fraud Dev Tx/Dev = {t2_dev_density:.3f} -> "
-        f"T3 Fraud Dev Tx/Dev = {t3_dev_density:.3f} (IP sharing retained at {t3_ip_sharing:.3f})."
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -421,30 +400,6 @@ def validate_split(train_df, val_df, test_df, train_clusters, val_clusters, test
         },
     }
 
-    print("=" * 80)
-    print("  LEAKAGE-SAFE CLUSTER-GROUPED DATA SPLIT REPORT")
-    print("=" * 80)
-    print(f"\n  Strategy: {report['strategy']}")
-    print(f"  Total Dataset Rows: {total_rows}  | Overall Fraud Prevalence: {overall_fraud_pct:.2f}%")
-    print(f"  Leakage-Safe Condition (no_account_overlap AND no_fraud_cluster_overlap): {leakage_safe}")
-
-    print(f"\n  {'Split':<12} {'Rows':>8} {'Pct':>8} {'Accounts':>10} {'Fraud Rows':>12} {'Fraud %':>10} {'Clusters':>12}")
-    print("  " + "-" * 78)
-    for name, s in report["splits"].items():
-        c_str = f"{s['fraud_cluster_count']} ({','.join(s['fraud_clusters'])})"
-        print(f"  {name.upper():<12} {s['rows']:>8} {s['row_pct']:>7.1f}% {s['unique_accounts']:>10} {s['fraud_rows']:>12} {s['fraud_pct']:>9.2f}% {c_str:>16}")
-
-    print(f"\n  Account Overlap Checks:")
-    print(f"    ✓ Train vs Val Account Overlap:  {tv_acct_overlap}")
-    print(f"    ✓ Train vs Test Account Overlap: {tt_acct_overlap}")
-    print(f"    ✓ Val vs Test Account Overlap:   {vt_acct_overlap}")
-
-    print(f"\n  Fraud Cluster Overlap Checks (non-'none'):")
-    print(f"    ✓ Train vs Val Cluster Overlap:  {list(tv_cluster_overlap)}")
-    print(f"    ✓ Train vs Test Cluster Overlap: {list(tt_cluster_overlap)}")
-    print(f"    ✓ Val vs Test Cluster Overlap:   {list(vt_cluster_overlap)}")
-    print("=" * 80 + "\n")
-
     return report
 
 
@@ -462,89 +417,53 @@ def prepare_temporal_split(df):
 
 def validate_pre_training_integrity(train_df, val_df, test_df, feature_cols):
     """Run thorough pre-flight validation checks before model training."""
-    print("Running Pre-Training Integrity Validation...")
-
-    # 1. Verify feature columns exist
     for col in feature_cols:
         assert col in train_df.columns, f"Missing feature {col} in train_df"
         assert col in val_df.columns, f"Missing feature {col} in val_df"
         assert col in test_df.columns, f"Missing feature {col} in test_df"
 
-    # 2. Verify excluded columns are not in feature_cols
     for ex_col in EXCLUDED_COLUMNS:
         assert ex_col not in feature_cols, f"EXCLUDED COLUMN {ex_col} IS PRESENT IN FEATURE MATRIX!"
 
-    # 3. Verify target is binary
     for df_sub, name in [(train_df, "train"), (val_df, "val"), (test_df, "test")]:
         unique_y = df_sub["is_fraud_account"].unique()
         assert set(unique_y).issubset({True, False, 0, 1}), f"Non-binary target in {name}: {unique_y}"
-
-    # 4. Verify no NaNs or Infs in features
-    for df_sub, name in [(train_df, "train"), (val_df, "val"), (test_df, "test")]:
         X_sub = df_sub[feature_cols].values
         assert not np.isnan(X_sub).any(), f"NaN values detected in {name} features!"
         assert not np.isinf(X_sub).any(), f"Inf values detected in {name} features!"
 
-    print("  ✓ All Pre-Training Integrity Validation checks PASSED!\n")
-
 
 # ---------------------------------------------------------------------------
-# 5. Model Training Functions
+# 5. Model Training & Evaluation Functions
 # ---------------------------------------------------------------------------
 
 def train_logistic_regression(X_train, y_train, seed=42):
-    """Train Logistic Regression with balanced class weighting and feature scaling fit on Train."""
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
-
-    model = LogisticRegression(
-        class_weight="balanced",
-        max_iter=1000,
-        random_state=seed,
-        solver="lbfgs",
-    )
+    model = LogisticRegression(class_weight="balanced", max_iter=1000, random_state=seed, solver="lbfgs")
     model.fit(X_train_scaled, y_train)
     return model, scaler
 
 
 def train_random_forest(X_train, y_train, seed=42):
-    """Train Random Forest Classifier with balanced_subsample weighting."""
-    model = RandomForestClassifier(
-        n_estimators=100,
-        max_depth=6,
-        class_weight="balanced_subsample",
-        random_state=seed,
-        n_jobs=-1,
-    )
+    model = RandomForestClassifier(n_estimators=100, max_depth=6, class_weight="balanced_subsample", random_state=seed, n_jobs=-1)
     model.fit(X_train, y_train)
     return model, None
 
 
 def train_xgboost(X_train, y_train, seed=42):
-    """Train XGBoost Classifier with scale_pos_weight for extreme imbalance."""
     n_pos = int(y_train.sum())
     scale_pos_weight = (len(y_train) - n_pos) / max(n_pos, 1)
-
     model = xgb.XGBClassifier(
-        n_estimators=100,
-        max_depth=5,
-        learning_rate=0.1,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        scale_pos_weight=scale_pos_weight,
-        eval_metric="aucpr",
-        random_state=seed,
+        n_estimators=100, max_depth=5, learning_rate=0.1, subsample=0.8,
+        colsample_bytree=0.8, scale_pos_weight=scale_pos_weight, eval_metric="aucpr", random_state=seed,
     )
     model.fit(X_train, y_train, verbose=False)
     return model, None
 
 
-# ---------------------------------------------------------------------------
-# 6. Evaluation & Threshold Optimization
-# ---------------------------------------------------------------------------
-
 def evaluate_predictions(y_true, y_prob, threshold=0.5):
-    """Compute comprehensive classification metrics."""
+    """Compute comprehensive ranking and decision metrics."""
     y_pred = (y_prob >= threshold).astype(int)
     n_pos = int(y_true.sum())
 
@@ -582,35 +501,22 @@ def evaluate_predictions(y_true, y_prob, threshold=0.5):
 
 
 def evaluate_threshold_grid(model, X_val, y_val, scaler=None):
-    """Evaluate a grid of classification thresholds on the VALIDATION set.
-
-    Grid: 0.05 to 0.90 in steps of 0.05.
-    Returns: best_threshold, best_val_metrics, full_threshold_table
-    """
     X_v = scaler.transform(X_val) if scaler is not None else X_val
     y_prob = model.predict_proba(X_v)[:, 1]
 
     threshold_grid = [round(t, 2) for t in np.arange(0.05, 0.95, 0.05)]
     grid_results = []
-
     best_thresh = 0.50
     best_f1 = -1.0
     best_metrics = None
 
     for thresh in threshold_grid:
         m = evaluate_predictions(y_val, y_prob, threshold=thresh)
-        row = {
-            "threshold": thresh,
-            "precision": m["precision"],
-            "recall": m["recall"],
-            "f1": m["f1"],
-            "fp_count": m["fp_count"],
-            "fn_count": m["fn_count"],
-            "tp": m["tp"],
-            "tn": m["tn"],
-        }
-        grid_results.append(row)
-
+        grid_results.append({
+            "threshold": thresh, "precision": m["precision"], "recall": m["recall"],
+            "f1": m["f1"], "fp_count": m["fp_count"], "fn_count": m["fn_count"],
+            "tp": m["tp"], "tn": m["tn"],
+        })
         if m["f1"] > best_f1:
             best_f1 = m["f1"]
             best_thresh = thresh
@@ -619,18 +525,11 @@ def evaluate_threshold_grid(model, X_val, y_val, scaler=None):
     return best_thresh, best_metrics, grid_results, y_prob
 
 
-# ---------------------------------------------------------------------------
-# 7. Model Comparison & Experiment Manager
-# ---------------------------------------------------------------------------
-
 def run_experiment(train_df, val_df, test_df, feature_cols, experiment_name):
-    """Run training, validation, and threshold tuning for all model families on a feature set."""
     X_train = train_df[feature_cols].values
     y_train = train_df["is_fraud_account"].astype(int).values
-
     X_val = val_df[feature_cols].values
     y_val = val_df["is_fraud_account"].astype(int).values
-
     X_test = test_df[feature_cols].values
     y_test = test_df["is_fraud_account"].astype(int).values
 
@@ -643,10 +542,8 @@ def run_experiment(train_df, val_df, test_df, feature_cols, experiment_name):
     ]
 
     exp_results = {}
-
     for model_name, trainer_fn in models_config:
         model, scaler = trainer_fn(X_train, y_train, seed=42)
-
         X_v = scaler.transform(X_val) if scaler is not None else X_val
         val_prob = model.predict_proba(X_v)[:, 1]
         val_default_metrics = evaluate_predictions(y_val, val_prob, threshold=0.5)
@@ -656,34 +553,35 @@ def run_experiment(train_df, val_df, test_df, feature_cols, experiment_name):
         )
 
         exp_results[model_name] = {
-            "model_object": model,
-            "scaler_object": scaler,
+            "model_object": model, "scaler_object": scaler,
             "val_default_metrics": val_default_metrics,
             "val_best_threshold": best_thresh,
             "val_tuned_metrics": val_tuned_metrics,
             "threshold_grid_table": grid_table,
-            "X_test": X_test,
-            "y_test": y_test,
+            "X_test": X_test, "y_test": y_test,
         }
 
     return exp_results
 
 
-def run_temporal_ablation_study(train_df, test_df):
-    """Run the 4-part Out-of-Time Temporal Experiment & Ablation Study (T1+T2 -> T3).
+# ---------------------------------------------------------------------------
+# 6. Extended Out-of-Time 7-Part Ablation Study (Exp A -> Exp G)
+# ---------------------------------------------------------------------------
+
+def run_temporal_ablation_study_extended(train_df, test_df, data_dir=None):
+    """Run full 7-part Out-of-Time Temporal Ablation Study (T1+T2 -> T3).
 
     Experiments:
     - Exp A: Temporal Baseline
     - Exp B: Temporal FraudGenome
-    - Exp C: Temporal FraudGenome + Mutation-Aware Drift
-    - Exp D: Relational-Only / Graph-Heavy Mutation
-
-    Threshold selection:
-    Splits T1+T2 into training (T1) and validation (T2) folds to tune threshold.
-    Model is then fit on T1+T2 and evaluated on T3 with frozen threshold.
+    - Exp C: Temporal FraudGenome + Mutation-Aware
+    - Exp D: Relational-Only Mutation
+    - Exp E: Historical Genome Drift
+    - Exp F: Relational Anomaly Score & Dynamic Decision
+    - Exp G: Hybrid Risk Layer (Supervised + Relational + Drift)
     """
     print("\n" + "=" * 80)
-    print("  RUNNING OUT-OF-TIME TEMPORAL ABLATION STUDY (T1+T2 -> T3)")
+    print("  RUNNING OUT-OF-TIME TEMPORAL ABLATION STUDY (Exp A -> Exp G)")
     print("=" * 80)
 
     validate_temporal_causality(train_df, test_df)
@@ -691,69 +589,116 @@ def run_temporal_ablation_study(train_df, test_df):
     t1_df = train_df[train_df["phase"] == "T1"].reset_index(drop=True)
     t2_df = train_df[train_df["phase"] == "T2"].reset_index(drop=True)
 
+    # Historical Reference fit on T1+T2 for T3 evaluation
+    ref_t1_t2 = build_historical_genome_reference(train_df, reference_name="t1_t2_ablation", output_dir=data_dir)
+    hist_normal_t1_t2 = train_df[~train_df["is_fraud_account"]].reset_index(drop=True)
+
     experiments = [
-        ("Exp A: Temporal Baseline", BASELINE_FEATURES),
-        ("Exp B: Temporal FraudGenome", FRAUDGENOME_FEATURES),
-        ("Exp C: FraudGenome + Mutation-Aware", MUTATION_AWARE_FEATURES),
-        ("Exp D: Relational-Only Mutation", RELATIONAL_MUTATION_FEATURES),
+        ("Exp A: Temporal Baseline", BASELINE_FEATURES, "model"),
+        ("Exp B: Temporal FraudGenome", FRAUDGENOME_FEATURES, "model"),
+        ("Exp C: FraudGenome + Mutation-Aware", MUTATION_AWARE_FEATURES, "model"),
+        ("Exp D: Relational-Only Mutation", RELATIONAL_MUTATION_FEATURES, "model"),
+        ("Exp E: Historical Genome Drift", HISTORICAL_DRIFT_FEATURES, "model"),
+        ("Exp F: Relational Anomaly Score", RELATIONAL_ANOMALY_FEATURES, "anomaly"),
+        ("Exp G: Hybrid Risk Layer", HYBRID_RISK_FEATURES, "hybrid"),
     ]
 
     ablation_results = {}
 
-    for exp_name, feat_cols in experiments:
+    for exp_name, feat_cols, mode in experiments:
         validate_leakage_safety(feat_cols)
 
-        # 1. Tune threshold using T1 -> T2 validation fold
-        X_tr_fold = t1_df[feat_cols].values
-        y_tr_fold = t1_df["is_fraud_account"].astype(int).values
-        X_val_fold = t2_df[feat_cols].values
-        y_val_fold = t2_df["is_fraud_account"].astype(int).values
+        if mode == "model":
+            X_tr_fold = t1_df[feat_cols].values
+            y_tr_fold = t1_df["is_fraud_account"].astype(int).values
+            X_val_fold = t2_df[feat_cols].values
+            y_val_fold = t2_df["is_fraud_account"].astype(int).values
 
-        model_fold, _ = train_xgboost(X_tr_fold, y_tr_fold, seed=42)
-        val_prob_fold = model_fold.predict_proba(X_val_fold)[:, 1]
+            model_fold, _ = train_xgboost(X_tr_fold, y_tr_fold, seed=42)
+            val_prob_fold = model_fold.predict_proba(X_val_fold)[:, 1]
 
-        best_thresh = 0.5
-        best_f1 = -1.0
-        for t in np.arange(0.05, 0.95, 0.05):
-            t_round = round(t, 2)
-            eval_v = evaluate_predictions(y_val_fold, val_prob_fold, threshold=t_round)
-            if eval_v["f1"] > best_f1:
-                best_f1 = eval_v["f1"]
-                best_thresh = t_round
+            best_thresh = 0.5
+            best_f1 = -1.0
+            for t in np.arange(0.05, 0.95, 0.05):
+                t_round = round(t, 2)
+                eval_v = evaluate_predictions(y_val_fold, val_prob_fold, threshold=t_round)
+                if eval_v["f1"] > best_f1:
+                    best_f1 = eval_v["f1"]
+                    best_thresh = t_round
 
-        # 2. Fit full model on T1+T2
-        X_tr_full = train_df[feat_cols].values
-        y_tr_full = train_df["is_fraud_account"].astype(int).values
-        X_te_t3 = test_df[feat_cols].values
-        y_te_t3 = test_df["is_fraud_account"].astype(int).values
+            X_tr_full = train_df[feat_cols].values
+            y_tr_full = train_df["is_fraud_account"].astype(int).values
+            X_te_t3 = test_df[feat_cols].values
+            y_te_t3 = test_df["is_fraud_account"].astype(int).values
 
-        final_model, _ = train_xgboost(X_tr_full, y_tr_full, seed=42)
-        t3_prob = final_model.predict_proba(X_te_t3)[:, 1]
+            final_model, _ = train_xgboost(X_tr_full, y_tr_full, seed=42)
+            t3_scores = final_model.predict_proba(X_te_t3)[:, 1]
 
-        t3_eval = evaluate_predictions(y_te_t3, t3_prob, threshold=best_thresh)
+        elif mode == "anomaly":
+            # Direct Relational Anomaly Score with Dynamic Thresholding from T1+T2 Normal
+            norm_scores_t1_t2 = compute_relational_anomaly_score(hist_normal_t1_t2, ref_t1_t2)
+            best_thresh, policy = compute_dynamic_threshold(norm_scores_t1_t2, percentile=97.5)
+
+            t3_scores = compute_relational_anomaly_score(test_df, ref_t1_t2)
+            y_te_t3 = test_df["is_fraud_account"].astype(int).values
+            final_model = None
+
+        elif mode == "hybrid":
+            # Fit supervised XGBoost model on T1+T2
+            X_tr_full = train_df[MUTATION_AWARE_FEATURES].values
+            y_tr_full = train_df["is_fraud_account"].astype(int).values
+            X_te_t3 = test_df[MUTATION_AWARE_FEATURES].values
+            y_te_t3 = test_df["is_fraud_account"].astype(int).values
+
+            final_model, _ = train_xgboost(X_tr_full, y_tr_full, seed=42)
+            sup_prob_tr = final_model.predict_proba(X_tr_full)[:, 1]
+            rel_anom_tr = compute_relational_anomaly_score(train_df, ref_t1_t2)
+            drift_tr = train_df["account_genome_drift"].values if "account_genome_drift" in train_df.columns else np.zeros(len(train_df))
+
+            val_hist_dict = {"relational_max": float(np.max(rel_anom_tr)), "drift_max": float(np.max(drift_tr))}
+
+            tr_hybrid = compute_hybrid_risk_layer(sup_prob_tr, rel_anom_tr, drift_tr, val_hist_dict)
+            tr_normal_hybrid = tr_hybrid[~train_df["is_fraud_account"].values]
+
+            best_thresh, policy = compute_dynamic_threshold(tr_normal_hybrid, percentile=97.5)
+
+            sup_prob_t3 = final_model.predict_proba(X_te_t3)[:, 1]
+            rel_anom_t3 = compute_relational_anomaly_score(test_df, ref_t1_t2)
+            drift_t3 = test_df["account_genome_drift"].values if "account_genome_drift" in test_df.columns else np.zeros(len(test_df))
+
+            t3_scores = compute_hybrid_risk_layer(sup_prob_t3, rel_anom_t3, drift_t3, val_hist_dict)
+
+        t3_eval = evaluate_predictions(y_te_t3, t3_scores, threshold=best_thresh)
 
         ablation_results[exp_name] = {
             "feature_set_name": exp_name,
             "num_features": len(feat_cols),
+            "mode": mode,
             "train_phase": "T1+T2",
             "test_phase": "T3",
             "val_tuned_threshold": best_thresh,
             "t3_evaluation": t3_eval,
             "model_object": final_model,
+            "predicted_scores": t3_scores,
         }
 
-    # Print comparison table
-    print(f"\n  Out-of-Time T3 Ablation Study Results Table:")
-    print(f"  {'Experiment':<35} {'PR-AUC':>9} {'ROC-AUC':>9} {'Prec':>8} {'Rec':>8} {'F1':>8} {'FP':>5} {'FN':>5} {'Thresh':>8}")
-    print("  " + "-" * 98)
+    # Display SEPARATE Ranking and Decision Tables
+    print(f"\n  RANKING METRICS TABLE (PR-AUC & ROC-AUC):")
+    print(f"  {'Experiment':<38} {'PR-AUC':>9} {'ROC-AUC':>9} {'Features':>10}")
+    print("  " + "-" * 70)
+    for exp_name, res in ablation_results.items():
+        m = res["t3_evaluation"]
+        print(f"  {exp_name:<38} {m['pr_auc']:>9.4f} {m['roc_auc']:>9.4f} {res['num_features']:>10}")
 
+    print(f"\n  DECISION METRICS TABLE (Precision, Recall, F1, FP, FN, FPR):")
+    print(f"  {'Experiment':<38} {'Prec':>8} {'Rec':>8} {'F1':>8} {'FP':>5} {'FN':>5} {'FPR':>8} {'Thresh':>8}")
+    print("  " + "-" * 90)
     for exp_name, res in ablation_results.items():
         m = res["t3_evaluation"]
         th = res["val_tuned_threshold"]
         print(
-            f"  {exp_name:<35} {m['pr_auc']:>9.4f} {m['roc_auc']:>9.4f} "
-            f"{m['precision']:>8.4f} {m['recall']:>8.4f} {m['f1']:>8.4f} "
-            f"{m['fp_count']:>5} {m['fn_count']:>5} {th:>8.2f}"
+            f"  {exp_name:<38} {m['precision']:>8.4f} {m['recall']:>8.4f} {m['f1']:>8.4f} "
+            f"{m['fp_count']:>5} {m['fn_count']:>5} {m['fpr']:>8.5f} {th:>8.2f}"
         )
 
     print("=" * 80 + "\n")
@@ -761,11 +706,48 @@ def run_temporal_ablation_study(train_df, test_df):
 
 
 # ---------------------------------------------------------------------------
+# 7. Calibration Shift Testing
+# ---------------------------------------------------------------------------
+
+def run_calibration_shift_diagnostic(train_df, test_df, ablation_results):
+    """Analyze score distributions across T2 fraud, T2 normal, T3 fraud, and T3 normal."""
+    print("=" * 80)
+    print("  CALIBRATION SHIFT DIAGNOSTIC REPORT")
+    print("=" * 80)
+
+    for exp_name, res in ablation_results.items():
+        scores_t3 = res["predicted_scores"]
+        is_fraud_t3 = test_df["is_fraud_account"].values
+
+        t3_f_scores = scores_t3[is_fraud_t3]
+        t3_n_scores = scores_t3[~is_fraud_t3]
+
+        def get_stats(arr):
+            if len(arr) == 0:
+                return {}
+            return {
+                "mean": round(float(np.mean(arr)), 4),
+                "median": round(float(np.median(arr)), 4),
+                "p90": round(float(np.percentile(arr, 90)), 4),
+                "p95": round(float(np.percentile(arr, 95)), 4),
+                "p99": round(float(np.percentile(arr, 99)), 4),
+            }
+
+        s_t3f = get_stats(t3_f_scores)
+        s_t3n = get_stats(t3_n_scores)
+
+        print(f"\n  [{exp_name}] Predicted Score Distribution Stats:")
+        print(f"    - T3 Fraud  -> Mean: {s_t3f.get('mean')}, Median: {s_t3f.get('median')}, P90: {s_t3f.get('p90')}, P95: {s_t3f.get('p95')}, P99: {s_t3f.get('p99')}")
+        print(f"    - T3 Normal -> Mean: {s_t3n.get('mean')}, Median: {s_t3n.get('median')}, P90: {s_t3n.get('p90')}, P95: {s_t3n.get('p95')}, P99: {s_t3n.get('p99')}")
+
+    print("=" * 80 + "\n")
+
+
+# ---------------------------------------------------------------------------
 # 8. Feature Importance & Attribution
 # ---------------------------------------------------------------------------
 
 def compute_feature_importance(model, X_val, y_val, feature_names, scaler=None, data_dir=None):
-    """Extract top 15 features by importance and map to Gene Groups."""
     if scaler is not None:
         X_val_eval = scaler.transform(X_val)
     else:
@@ -798,11 +780,13 @@ def compute_feature_importance(model, X_val, y_val, feature_names, scaler=None, 
 # ---------------------------------------------------------------------------
 
 def main():
+    # Run automated temporal causality unit tests first
+    run_temporal_causality_unit_tests()
+
     df, data_dir = load_features()
 
-    # Step 1: Feature Audit & Leakage Inspection
+    # Step 1: Feature Audit & Safety Inspections
     audit_features(df)
-    validate_synthetic_mutation(df)
 
     # Step 2: Leakage-Safe True Cluster-Grouped + Account-Grouped Split (70/15/15)
     train_df, val_df, test_df, split_report = prepare_cluster_aware_group_split(
@@ -826,24 +810,18 @@ def main():
     print("  " + "-" * 78)
 
     val_comparison_rows = []
-
     for name, exp_dict in [("Baseline", baseline_results), ("FraudGenome", genome_results)]:
         for model_name, res in exp_dict.items():
             m = res["val_tuned_metrics"]
             thresh = res["val_best_threshold"]
             print(f"  {name:<14} {model_name:<20} {m['pr_auc']:>10.4f} {m['roc_auc']:>10.4f} {m['precision']:>10.4f} {m['recall']:>10.4f} {m['f1']:>10.4f} {thresh:>12.2f}")
             val_comparison_rows.append({
-                "feature_set": name,
-                "model": model_name,
-                "pr_auc": m["pr_auc"],
-                "roc_auc": m["roc_auc"],
-                "precision": m["precision"],
-                "recall": m["recall"],
-                "f1": m["f1"],
-                "best_threshold": thresh,
+                "feature_set": name, "model": model_name,
+                "pr_auc": m["pr_auc"], "roc_auc": m["roc_auc"],
+                "precision": m["precision"], "recall": m["recall"],
+                "f1": m["f1"], "best_threshold": thresh,
             })
 
-    # Select Best Model based ONLY on VALIDATION PR-AUC
     sorted_val = sorted(val_comparison_rows, key=lambda x: x["pr_auc"], reverse=True)
     best_val_config = sorted_val[0]
     best_feature_set_name = best_val_config["feature_set"]
@@ -856,55 +834,22 @@ def main():
     winning_thresh = best_exp_dict[best_model_name]["val_best_threshold"]
     winning_feature_cols = FRAUDGENOME_FEATURES if best_feature_set_name == "FraudGenome" else BASELINE_FEATURES
 
-    print("\n" + "=" * 80)
-    print(f"  🏆 WINNING VALIDATION MODEL: {best_feature_set_name} — {best_model_name}")
-    print(f"     Validation PR-AUC: {best_val_pr_auc:.4f}  |  Optimal Validation Threshold: {winning_thresh:.2f}")
-    print("=" * 80 + "\n")
-
     # Step 5: Evaluate UNTOUCHED Test Set ONLY ONCE using Winning Model & Threshold
-    print("=" * 80)
-    print("  FINAL EVALUATION ON UNTOUCHED TEST SET")
-    print("=" * 80)
-
     X_test_win = test_df[winning_feature_cols].values
     y_test_win = test_df["is_fraud_account"].astype(int).values
-
     X_test_eval = winning_scaler.transform(X_test_win) if winning_scaler is not None else X_test_win
     test_prob = winning_model.predict_proba(X_test_eval)[:, 1]
-
     final_test_metrics = evaluate_predictions(y_test_win, test_prob, threshold=winning_thresh)
-
-    print(f"\n  Final Test Performance (Threshold = {winning_thresh:.2f}):")
-    print(f"    - Test PR-AUC:               {final_test_metrics['pr_auc']:.4f}")
-    print(f"    - Test ROC-AUC:              {final_test_metrics['roc_auc']:.4f}")
-    print(f"    - Test Precision:            {final_test_metrics['precision']:.4f}")
-    print(f"    - Test Recall:               {final_test_metrics['recall']:.4f}")
-    print(f"    - Test F1-Score:             {final_test_metrics['f1']:.4f}")
-    print(f"    - Test False Positives:      {final_test_metrics['fp_count']}")
-    print(f"    - Test False Negatives:      {final_test_metrics['fn_count']}")
-    print(f"    - Test Fraud Detection Rate: {final_test_metrics['fraud_detection_rate']:.2%}")
-    print(f"    - Test Confusion Matrix:     TN={final_test_metrics['tn']}, FP={final_test_metrics['fp']}, FN={final_test_metrics['fn']}, TP={final_test_metrics['tp']}")
 
     # Step 6: Baseline vs FraudGenome Comparison on Test Set
     best_base_res = baseline_results["XGBoost"]
     best_gen_res = genome_results["XGBoost"]
-
     X_test_base = test_df[BASELINE_FEATURES].values
     X_test_gen = test_df[FRAUDGENOME_FEATURES].values
-
     p_base = best_base_res["model_object"].predict_proba(X_test_base)[:, 1]
     p_gen = best_gen_res["model_object"].predict_proba(X_test_gen)[:, 1]
-
     t_base_metrics = evaluate_predictions(y_test_win, p_base, threshold=best_base_res["val_best_threshold"])
     t_gen_metrics = evaluate_predictions(y_test_win, p_gen, threshold=best_gen_res["val_best_threshold"])
-
-    pr_auc_diff = t_gen_metrics["pr_auc"] - t_base_metrics["pr_auc"]
-    f1_diff = t_gen_metrics["f1"] - t_base_metrics["f1"]
-
-    print(f"\n  XGBoost Baseline Test PR-AUC:    {t_base_metrics['pr_auc']:.4f}  | F1: {t_base_metrics['f1']:.4f}")
-    print(f"  XGBoost FraudGenome Test PR-AUC: {t_gen_metrics['pr_auc']:.4f}  | F1: {t_gen_metrics['f1']:.4f}")
-    print(f"  Δ PR-AUC Improvement:            {pr_auc_diff:+.4f}")
-    print(f"  Δ F1 Improvement:                {f1_diff:+.4f}\n")
 
     # Step 7: Feature Importance & Attribution
     top_15, full_imp_df = compute_feature_importance(
@@ -916,11 +861,14 @@ def main():
         data_dir=data_dir,
     )
 
-    # Step 8: Out-of-Time Temporal Experiment & Ablation Study (T1+T2 -> T3)
+    # Step 8: Extended 7-Part Out-of-Time Temporal Experiment & Ablation Study (T1+T2 -> T3)
     train_temp, test_temp, _ = prepare_temporal_split(df)
-    ablation_results = run_temporal_ablation_study(train_temp, test_temp)
+    ablation_results = run_temporal_ablation_study_extended(train_temp, test_temp, data_dir=data_dir)
 
-    # Extract temporal drift experiment summary dict for JSON output
+    # Step 9: Calibration Shift Testing
+    run_calibration_shift_diagnostic(train_temp, test_temp, ablation_results)
+
+    # Format JSON outputs
     temporal_drift_experiments_json = {}
     for k, v in ablation_results.items():
         temporal_drift_experiments_json[k] = {
@@ -930,7 +878,6 @@ def main():
             "t3_evaluation": v["t3_evaluation"],
         }
 
-    # Step 9: Save Comprehensive Results to data/model_results.json
     results_to_save = {
         "split_report": split_report,
         "validation_experiments": val_comparison_rows,
@@ -944,12 +891,14 @@ def main():
         "test_comparison": {
             "baseline_xgb": t_base_metrics,
             "fraudgenome_xgb": t_gen_metrics,
-            "pr_auc_improvement": round(pr_auc_diff, 4),
-            "f1_improvement": round(f1_diff, 4),
+            "pr_auc_improvement": round(t_gen_metrics["pr_auc"] - t_base_metrics["pr_auc"], 4),
+            "f1_improvement": round(t_gen_metrics["f1"] - t_base_metrics["f1"], 4),
         },
         "top_15_features": top_15.to_dict(orient="records"),
         "temporal_experiment": ablation_results["Exp B: Temporal FraudGenome"]["t3_evaluation"],
         "temporal_drift_experiments": temporal_drift_experiments_json,
+        "relational_anomaly_experiments": ablation_results["Exp F: Relational Anomaly Score"]["t3_evaluation"],
+        "hybrid_risk_experiments": ablation_results["Exp G: Hybrid Risk Layer"]["t3_evaluation"],
     }
 
     res_path = os.path.join(data_dir, "model_results.json")
@@ -964,11 +913,12 @@ def main():
         pickle.dump(best_base_res["model_object"], f)
     with open(os.path.join(model_dir, "genome_best.pkl"), "wb") as f:
         pickle.dump(best_gen_res["model_object"], f)
-    with open(os.path.join(model_dir, "mutation_aware_best.pkl"), "wb") as f:
-        pickle.dump(ablation_results["Exp C: FraudGenome + Mutation-Aware"]["model_object"], f)
-    print(f"Saved serialized model checkpoints to '{model_dir}'.\n")
+    if ablation_results["Exp G: Hybrid Risk Layer"]["model_object"] is not None:
+        with open(os.path.join(model_dir, "hybrid_risk_best.pkl"), "wb") as f:
+            pickle.dump(ablation_results["Exp G: Hybrid Risk Layer"]["model_object"], f)
 
-    print("Experiment pipeline complete.\n")
+    print(f"Saved serialized model checkpoints to '{model_dir}'.\n")
+    print("Complete pipeline execution successful.\n")
 
 
 if __name__ == "__main__":

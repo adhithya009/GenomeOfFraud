@@ -2,7 +2,12 @@ import os
 
 import numpy as np
 import pandas as pd
-from genome_drift import compute_mutation_aware_features
+from genome_drift import (
+    build_historical_genome_reference,
+    compute_account_genome_drift,
+    compute_relational_anomaly_score,
+    compute_mutation_aware_features,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -17,6 +22,7 @@ NON_SCALED_COLS = {"acct_kyc_unverified", "merch_top_category"}
 GENE_PREFIXES = [
     "acct_", "dev_", "net_", "tx_", "merch_", "graph_",
     "relational_", "topology_", "behavioral_", "genome_",
+    "account_", "device_", "network_", "merchant_", "community_",
 ]
 
 
@@ -424,9 +430,13 @@ def assemble_genome(
 
 def normalize_genome(genome_full_df):
     """Global min-max normalize all continuous gene features across all phases."""
+    excluded_meta = {"account_id", "phase", "is_fraud_account", "fraud_cluster_id", "scenario"}
     continuous_cols = [
         c for c in genome_full_df.columns
-        if any(c.startswith(p) for p in GENE_PREFIXES) and c not in NON_SCALED_COLS
+        if any(c.startswith(p) for p in GENE_PREFIXES)
+        and c not in NON_SCALED_COLS
+        and c not in excluded_meta
+        and pd.api.types.is_numeric_dtype(genome_full_df[c])
     ]
 
     genome_norm = genome_full_df.copy()
@@ -542,7 +552,7 @@ def main():
         "T3": merged_df[merged_df["timestamp_dt"] >= phase_windows["T3"][0]],
     }
 
-    genome_phases = []
+    genome_phase_dict = {}
     for phase_label in ("T1", "T2", "T3"):
         phase_df = phase_slices[phase_label]
         phase_start, phase_end = phase_windows[phase_label]
@@ -562,15 +572,36 @@ def main():
             phase_start=phase_start,
             phase_end=phase_end,
         )
-        genome_phases.append(genome_phase)
+        genome_phase_dict[phase_label] = genome_phase
         print(
             f"  → {len(genome_phase)} accounts  ×  "
             f"{len(genome_phase.columns)} columns  "
             f"({genome_phase['is_fraud_account'].sum()} fraud accounts)"
         )
 
+    # Historical Reference Policy
+    # T1 -> T1 reference
+    # T2 -> T1 reference
+    # T3 -> T1+T2 reference
+    print("\n" + "=" * 58)
+    print("  Building Causal Historical Genome References")
+    print("=" * 58)
+    ref_t1 = build_historical_genome_reference(genome_phase_dict["T1"], reference_name="t1", output_dir=data_dir)
+    hist_t1_t2 = pd.concat([genome_phase_dict["T1"], genome_phase_dict["T2"]], ignore_index=True)
+    ref_t1_t2 = build_historical_genome_reference(hist_t1_t2, reference_name="t1_t2", output_dir=data_dir)
+
+    processed_phases = []
+    for phase_label in ("T1", "T2", "T3"):
+        g_df = genome_phase_dict[phase_label].copy()
+        ref = ref_t1 if phase_label in ("T1", "T2") else ref_t1_t2
+
+        print(f"  Computing Account-Level Drift & Relational Anomaly for Phase {phase_label}...")
+        g_df = compute_account_genome_drift(g_df, ref)
+        g_df["relational_anomaly_score"] = compute_relational_anomaly_score(g_df, ref)
+        processed_phases.append(g_df)
+
     # Stack all phases
-    genome_full = pd.concat(genome_phases, ignore_index=True)
+    genome_full = pd.concat(processed_phases, ignore_index=True)
     print(f"\nFull genome shape before mutation features: {genome_full.shape}")
 
     # Compute mutation-aware higher level features

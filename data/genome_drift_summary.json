@@ -1,56 +1,60 @@
 {
-  "title": "T2 -> T3 Genome Drift Summary",
+  "title": "T2 -> T3 Population Genome Drift Summary",
   "device_genome_drift": "LOW DRIFT",
   "network_genome_drift": "LOW DRIFT",
-  "merchant_genome_drift": "LOW DRIFT",
-  "graph_genome_drift": "LOW DRIFT",
   "diagnostic_metrics": {
-    "device_sharing_change": -0.000583,
-    "t2_device_sharing_ratio": 0.966167,
-    "t3_device_sharing_ratio": 0.965583,
+    "device_density_change": -0.002662,
     "ip_sharing_persistence": 0.999983,
-    "merchant_sharing_persistence": 0.990056,
-    "graph_topology_change": 0.0225,
-    "community_structure_change": 0.023917
+    "merchant_sharing_persistence": 0.990056
   },
   "gene_group_rankings": [
     {
       "gene_group": "Community",
       "num_features": 4,
-      "mean_drift_score": 0.52615875,
-      "max_drift_score": 0.612848,
-      "mean_ks_stat": 0.409375,
-      "mean_wasserstein": 0.11648025000000001,
-      "top_mutated_feature": "graph_community_shared_ip_ratio",
+      "mean_drift_score": 0.53105625,
+      "max_drift_score": 0.611325,
+      "mean_ks_stat": 0.38925,
+      "mean_wasserstein": 0.13675575,
+      "top_mutated_feature": "graph_community_size",
       "drift_level": "HIGH DRIFT"
     },
     {
       "gene_group": "Transaction",
       "num_features": 7,
-      "mean_drift_score": 0.08882142857142858,
-      "max_drift_score": 0.49031,
-      "mean_ks_stat": 0.0635,
-      "mean_wasserstein": 0.03476742857142857,
+      "mean_drift_score": 0.09015742857142857,
+      "max_drift_score": 0.489413,
+      "mean_ks_stat": 0.06407142857142857,
+      "mean_wasserstein": 0.03480142857142857,
       "top_mutated_feature": "tx_weekend_ratio",
       "drift_level": "LOW DRIFT"
     },
     {
       "gene_group": "Merchant",
       "num_features": 6,
-      "mean_drift_score": 0.07121083333333333,
-      "max_drift_score": 0.267909,
-      "mean_ks_stat": 0.049666666666666665,
-      "mean_wasserstein": 0.02528066666666667,
+      "mean_drift_score": 0.07590666666666666,
+      "max_drift_score": 0.296084,
+      "mean_ks_stat": 0.05466666666666667,
+      "mean_wasserstein": 0.02524816666666667,
       "top_mutated_feature": "merch_avg_age_days",
+      "drift_level": "LOW DRIFT"
+    },
+    {
+      "gene_group": "Other",
+      "num_features": 14,
+      "mean_drift_score": 0.059738071428571425,
+      "max_drift_score": 0.158211,
+      "mean_ks_stat": 0.05878571428571428,
+      "mean_wasserstein": 0.014191142857142859,
+      "top_mutated_feature": "community_drift_score",
       "drift_level": "LOW DRIFT"
     },
     {
       "gene_group": "Account",
       "num_features": 8,
-      "mean_drift_score": 0.051430625,
-      "max_drift_score": 0.276913,
-      "mean_ks_stat": 0.0329375,
-      "mean_wasserstein": 0.016774874999999998,
+      "mean_drift_score": 0.051402750000000004,
+      "max_drift_score": 0.277384,
+      "mean_ks_stat": 0.0331875,
+      "mean_wasserstein": 0.01675325,
       "top_mutated_feature": "acct_age_days",
       "drift_level": "LOW DRIFT"
     },
@@ -65,22 +69,12 @@
       "drift_level": "LOW DRIFT"
     },
     {
-      "gene_group": "Other",
-      "num_features": 4,
-      "mean_drift_score": 0.026189999999999998,
-      "max_drift_score": 0.036754,
-      "mean_ks_stat": 0.0295,
-      "mean_wasserstein": 0.0058615,
-      "top_mutated_feature": "relational_stability_score",
-      "drift_level": "LOW DRIFT"
-    },
-    {
       "gene_group": "Graph",
-      "num_features": 9,
-      "mean_drift_score": 0.021663555555555557,
+      "num_features": 10,
+      "mean_drift_score": 0.0225309,
       "max_drift_score": 0.030817,
-      "mean_ks_stat": 0.016555555555555556,
-      "mean_wasserstein": 0.0051545555555555555,
+      "mean_ks_stat": 0.01825,
+      "mean_wasserstein": 0.0050843,
       "top_mutated_feature": "graph_proj_degree",
       "drift_level": "LOW DRIFT"
     },
@@ -94,6 +88,5 @@
       "top_mutated_feature": "dev_concentration",
       "drift_level": "LOW DRIFT"
     }
-  ],
-  "interpretation": "Device genome exhibited low drift (sharing ratio shifted by -0.0006). Network IP genome exhibited low drift with persistence score 1.0000. Merchant genome exhibited low drift with persistence score 0.9901. Graph structure exhibited low drift (topology shift KS stat = 0.0225)."
+  ]
 }
