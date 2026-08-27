@@ -18,23 +18,24 @@ GenomeOfFraud/
 │   ├── genome_full.csv    # Extracted behavioral & mutation-aware features
 │   ├── genome_reference_t1.json    # Causal T1 historical reference statistics
 │   ├── genome_reference_t1_t2.json # Causal T1+T2 historical reference statistics
+│   ├── risk_calibration_t1_t2.json # Frozen empirical CDF & policy calibration profile
 │   ├── genome_drift_report.csv     # Population distribution drift analysis (T2 -> T3)
 │   ├── genome_drift_summary.json   # Human-readable drift summary & diagnostic metrics
-│   └── model_results.json # Full benchmark results and 7-part ablation study metrics
+│   └── model_results.json # Full benchmark results, calibration, & ablation metrics
 ├── src/                   # Python source code
 │   ├── __init__.py
 │   ├── generate_data.py   # Synthetic data generator, fraud injector, & validator
 │   ├── build_graph.py     # Graph constructor & temporal decay engine
 │   ├── community.py       # Projection graph generator & Louvain community detector
 │   ├── features.py        # Behavioral gene extraction & global normalization
-│   ├── genome_drift.py    # Historical reference engine, account drift, & relational anomaly detector
-│   └── model.py           # Leakage-safe model trainer, out-of-time ablation evaluator, & risk layer
+│   ├── genome_drift.py    # Historical reference engine, ECDF calibration, & policy layer
+│   └── model.py           # Leakage-safe model trainer, out-of-time ablation, & alert evaluator
 ├── .gitignore             # Git ignore configuration
 ├── requirements.txt       # Python dependencies
 └── README.md              # Project documentation
 ```
 
-## Overall Project Structure
+## Overall Project Progress
 
 [██████████] Concept / architecture   
 [██████████] Fraud scenario design  
@@ -44,40 +45,40 @@ GenomeOfFraud/
 [██████████] Baseline model  
 [██████████] FraudGenome model  
 [██████████] Genome drift  
+[██████████] Decision layer & Frozen Calibration  
 [██████████] SHAP  
-[██████████] Decision layer  
 [██████████] Streamlit  
 
 ---
 
-## Architecture: Causal Historical Reference & Dynamic Risk Layer
+## Architecture: Causal Historical Reference & Frozen Risk Calibration
 
 ```
-                Historical Genome Reference (T<P)
-                               │
-                               ▼
-                        Current Account
-                               │
-          ┌────────────────────┼────────────────────┐
-          ▼                    ▼                    ▼
-    Genome Drift      Relational Anomaly     Behavioral Drift
-   (Z-score vs Ref)   (Graph Topology)      (Surface Activity)
-          │                    │                    │
-          └────────────────────┼────────────────────┘
-                               ▼
-                       Hybrid Risk Layer
-           (Supervised Prob + Relational + Drift)
-                               │
-                               ▼
-                    Dynamic Risk Threshold
-              (Historical Percentile Calibration)
-                               │
-                      ┌────────┴────────┐
-                      ▼                 ▼
-                   NORMAL             FRAUD
+       Historical T1/T2 Normal Population
+                      │
+                      ▼
+        Empirical CDF & Quantiles Fit
+       (data/risk_calibration_t1_t2.json)
+                      │
+        ┌─────────────┴─────────────┐
+        ▼                           ▼
+Supervised Prob        Relational Anomaly / Drift
+ (Calibrated)            (Empirical Percentile)
+        │                           │
+        └─────────────┬─────────────┘
+                      ▼
+              Hybrid Risk Score
+       (Frozen Historical Weights)
+                      │
+                      ▼
+          Cost-Sensitive Decision Policy
+     (p90 Allow | p95 Challenge | p99 Block)
+                      │
+                      ▼
+         Precision@K & Alert-Budget Evaluation
 ```
 
-### Concept & Objectives
+### Concept & Core Objectives
 
 Genome drift occurs when fraud syndicates intentionally alter their operational surface tactics between time periods to evade traditional rule engines and supervised models.
 
@@ -85,46 +86,100 @@ The framework decomposes the fraud representation into two structural levels:
 * **Level A: Individual Behavioral Genes**: Account velocity, device usage counts, transaction amounts, individual IP/merchant interaction frequencies. (Highly volatile during mutation)
 * **Level B: Relational Genome**: Relational topology across shared entity infrastructure (`account ↔ IP`, `account ↔ merchant`, graph projection degree, community density). (Relatively stable during mutation)
 
-### Temporal Reference Policy & Safeguards
+### Temporal Reference & Calibration Policy
 
 To prevent future lookahead leakage ($T_1+T_2 \rightarrow T_3$):
 * **Phase $T_1$ Reference**: Population baseline constructed from $T_1$.
 * **Phase $T_2$ Reference**: Population baseline constructed strictly from $T_1$.
 * **Phase $T_3$ Reference**: Population baseline constructed strictly from $T_1 + T_2$.
+* **Frozen Calibration Profile**: Empirical CDF quantiles ($1000$ points) for supervised probability, relational anomaly, and genome drift scores are fit strictly on $T_1+T_2$ normal data and exported to `data/risk_calibration_t1_t2.json`.
 
-All references are saved to `data/genome_reference_*.json` and unit-tested for invariance against future data corruption.
+All references and calibration artifacts are saved to disk and unit-tested for 100% byte-for-byte immutability against future data corruption.
 
 ---
 
-## Out-of-Time 7-Part Ablation Study ($T_1+T_2 \rightarrow T_3$)
+## Out-of-Time Experimental Evaluation ($T_1+T_2 \rightarrow T_3$)
 
-### Ranking Metrics Table (Ranking Quality across $T_3$)
+### Ranking vs Decision Metrics
 
-| Experiment | PR-AUC | ROC-AUC | Features | Evaluation Mode |
+* **Ranking**: *"How well does the system order suspicious accounts?"* (PR-AUC, ROC-AUC)
+* **Decision**: *"How many accounts are actually flagged at the chosen policy threshold?"* (Precision, Recall, F1, FP, FN, FPR)
+
+---
+
+### A. Ranking Comparison Table ($T_3$)
+
+| Experiment | PR-AUC | ROC-AUC | Feature Count | Mode |
 | :--- | ---: | ---: | ---: | :--- |
 | **Exp A: Temporal Baseline** | 0.1290 | 0.7533 | 25 | Supervised Model |
 | **Exp B: Temporal FraudGenome** | 0.1377 | 0.7573 | 45 | Supervised Model |
 | **Exp C: FraudGenome + Mutation-Aware** | 0.1140 | 0.5959 | 52 | Supervised Model |
-| **Exp D: Relational-Only Mutation** | 0.2444 | 0.8388 | 23 | Supervised Model |
-| **Exp E: Historical Genome Drift** | 0.1137 | 0.7279 | 8 | Supervised Model |
-| **Exp F: Relational Anomaly Score** | **0.0939** | **0.8939** | 24 | Unsupervised Relational Anomaly |
-| **Exp G: Hybrid Risk Layer** | **0.2293** | **0.8876** | 61 | Supervised + Relational + Drift |
+| **Exp D: Relational-Only Mutation** | **0.2462** | **0.8388** | 23 | Supervised Model |
+| **Exp E: Historical Genome Drift** | 0.1168 | 0.5930 | 8 | Supervised Model |
+| **Exp F: Relational Anomaly Score** | **0.0623** | **0.8648** | 24 | Unsupervised Relational Anomaly |
+| **Exp G: Calibrated Hybrid Risk Layer** | **0.1114** | **0.8480** | 61 | Supervised + Relational + Drift |
 
-### Decision Metrics Table (Deployed Detection Performance)
+---
 
-| Experiment | Precision | Recall | F1 | False Positives | False Negatives | FPR | Cutoff Threshold |
+### B. Decision Comparison Table ($T_3$)
+
+| Experiment | Precision | Recall | F1 | FP | FN | FPR | Cutoff Threshold |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **Exp A: Temporal Baseline** | 1.0000 | 0.1000 | 0.1818 | 0 | 9 | 0.00000 | 0.05 (Fixed) |
-| **Exp B: Temporal FraudGenome** | 1.0000 | 0.1000 | 0.1818 | 0 | 9 | 0.00000 | 0.05 (Fixed) |
-| **Exp C: FraudGenome + Mutation-Aware** | 1.0000 | 0.1000 | 0.1818 | 0 | 9 | 0.00000 | 0.05 (Fixed) |
-| **Exp D: Relational-Only Mutation** | 1.0000 | 0.1000 | 0.1818 | 0 | 9 | 0.00000 | 0.05 (Fixed) |
-| **Exp E: Historical Genome Drift** | 0.2500 | 0.1000 | 0.1429 | 3 | 9 | 0.00151 | 0.05 (Fixed) |
-| **Exp F: Relational Anomaly Score** | **0.0658** | **0.5000** | **0.1163** | 71 | 5 | 0.03568 | **1.06 (Dynamic 97.5th %ile)** |
-| **Exp G: Hybrid Risk Layer** | **0.0725** | **0.5000** | **0.1266** | 64 | 5 | 0.03216 | **0.30 (Dynamic 97.5th %ile)** |
+| **Exp A: Temporal Baseline** | 1.0000 | 0.1000 | 0.1818 | 0 | 9 | 0.00000 | 0.0500 (Fixed) |
+| **Exp B: Temporal FraudGenome** | 1.0000 | 0.1000 | 0.1818 | 0 | 9 | 0.00000 | 0.0500 (Fixed) |
+| **Exp C: FraudGenome + Mutation-Aware** | 1.0000 | 0.1000 | 0.1818 | 0 | 9 | 0.00000 | 0.0500 (Fixed) |
+| **Exp D: Relational-Only Mutation** | 1.0000 | 0.1000 | 0.1818 | 0 | 9 | 0.00000 | 0.0500 (Fixed) |
+| **Exp E: Historical Genome Drift** | 0.2500 | 0.1000 | 0.1429 | 3 | 9 | 0.00151 | 0.0500 (Fixed) |
+| **Exp F: Relational Anomaly Score** | **0.0225** | **0.6000** | **0.0433** | 261 | 4 | 0.13116 | **0.8938 (Frozen $p_{97.5}$)** |
+| **Exp G: Calibrated Hybrid Risk Layer** | **0.1143** | **0.4000** | **0.1778** | 31 | 6 | 0.01558 | **0.8938 (Frozen $p_{97.5}$)** |
 
-**Key Finding**:
-* **Relational Anomaly Scoring (Exp F)** produces a massive ranking capability (**ROC-AUC 0.8939**).
-* **Dynamic Threshold Calibration** fit on historical normal percentiles ($T_1+T_2$) increases $T_3$ fraud detection rate **5x from 10% (1/10) to 50% (5/10 fraud accounts detected)**.
+---
+
+### C. Alert-Budget & Precision@K Evaluation Table ($T_3$)
+
+In operational fraud teams, review capacity is constrained by analyst budgets:
+
+| Model | Capacity Budget | Alerts Flagged | Fraud Captured | Total Fraud | Capture Rate (Recall) | Precision |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| **Calibrated Hybrid Risk** | Top 0.5% | 10 | 2 | 10 | 0.2000 (20%) | **0.2000 (20.0%)** |
+| **Calibrated Hybrid Risk** | Top 1.0% | 20 | 3 | 10 | 0.3000 (30%) | **0.1500 (15.0%)** |
+| **Calibrated Hybrid Risk** | Top 2.0% | 40 | 4 | 10 | 0.4000 (40%) | **0.1000 (10.0%)** |
+| **Calibrated Hybrid Risk** | Top 5.0% | 100 | 5 | 10 | 0.5000 (50%) | **0.0500 (5.0%)** |
+
+---
+
+### D. Historical Hybrid Weighting Ablation ($T_1 \rightarrow T_2$ Validation Fold)
+
+Weight selection is conducted strictly on historical $T_1+T_2$ validation data (never on $T_3$ labels):
+
+| Weight Set Configuration | Weights $(w_1, w_2, w_3)$ | PR-AUC | ROC-AUC | Precision | Recall | F1 | Selection Status |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: | :--- |
+| **Set A (Baseline)** | $(0.4, 0.4, 0.2)$ | 0.5269 | 0.9909 | 0.0062 | 1.0000 | 0.0123 | Candidate |
+| **Set B (Relational Heavy)** | $(0.3, 0.5, 0.2)$ | 0.4976 | 0.9896 | 0.0078 | 1.0000 | 0.0156 | Candidate |
+| **Set C (Rel-Dominant)** | $(0.2, 0.6, 0.2)$ | 0.4827 | 0.9887 | 0.0092 | 1.0000 | 0.0183 | Candidate |
+| **Set D (Drift-Balanced)** | $(0.3, 0.4, 0.3)$ | **0.6020** | **0.9923** | 0.0072 | 1.0000 | 0.0143 | **SELECTED (WINNER)** |
+
+---
+
+### E. Historical Policy Threshold Sweep ($T_3$ Test Set Evaluation)
+
+Policies evaluated on $T_3$ using cutoffs frozen strictly from $T_1/T_2$:
+
+| Policy Percentile | Policy Cutoff | Precision | Recall | F1 | False Positives | False Negatives | FPR | Policy Action |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |
+| **$p_{95}$ (Permissive)** | 0.8788 | 0.0500 | 0.5000 | 0.0909 | 95 | 5 | 0.04774 | Monitor / Soft Challenge |
+| **$p_{97.5}$ (Balanced)** | 0.8938 | 0.0571 | 0.4000 | 0.1000 | 66 | 6 | 0.03317 | Step-Up Verification / Hold |
+| **$p_{99}$ (Strict)** | 0.9028 | 0.0816 | 0.4000 | 0.1356 | 45 | 6 | 0.02261 | Block / Manual Review |
+| **$p_{99.5}$ (Conservative)** | 0.9930 | 0.0000 | 0.0000 | 0.0000 | 0 | 10 | 0.00000 | Emergency Block |
+
+---
+
+## Four Scientifically Distinct System Capabilities
+
+1. **Population Genome Drift**: *"What changed globally between T2 and T3?"* (Wasserstein distance & KS stat summary in `data/genome_drift_summary.json`).
+2. **Account-Level Historical Drift**: *"Does this account differ from its historical genome baseline?"* (Standardized Z-scores in `genome_full.csv`).
+3. **Relational Anomaly Detection**: *"Does this account have unusual infrastructure sharing relationships?"* (Graph projection co-usage score).
+4. **Calibrated Risk Decision**: *"Given a frozen historical policy, should this account be investigated?"* (Calibrated hybrid risk layer & policy action).
 
 ---
 

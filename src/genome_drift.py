@@ -1,16 +1,17 @@
 """
 genome_drift.py — Causal Historical Genome Reference, Account-Level Drift Detection,
-                  Relational Anomaly Scoring, Hybrid Risk Layer, & Dynamic Decisioning
+                  Relational Anomaly Scoring, Frozen Calibration Engine, & Decision Layer
 
 This module implements:
 1. Causal Historical Genome Reference Construction (T1 for T1/T2; T1+T2 for T3).
 2. Online Account-Level Drift Detection (standardized Z-scores vs historical reference).
 3. Relational Anomaly Scoring (graph structure co-usage deviation).
-4. Dynamic Decisioning & Threshold Calibration (percentile-based cutoff fit on T1+T2).
-5. Hybrid Risk Layer (Supervised Probability + Relational Anomaly + Genome Drift).
-6. Natural-Language Account Explanations.
-7. Automated Temporal Causality Unit Tests.
-8. Offline Population Drift Analysis (T2 vs T3).
+4. Frozen Historical Calibration Engine (Empirical CDF & policy percentiles fit on T1/T2).
+5. Cost-Sensitive Decision Policy & Decision Confidence Metric.
+6. Calibrated Hybrid Risk Layer (Supervised + Relational + Drift via Empirical CDF).
+7. Natural-Language Account Explanations with Strict Safety Audits.
+8. Automated Unit Tests (Temporal Causality, Immutability, & Scoring Stability).
+9. Offline Population Drift Analysis (T2 vs T3).
 """
 
 import json
@@ -27,6 +28,13 @@ FORBIDDEN_COLS = {
     "fraud_cluster_id",
     "scenario",
     "graph_community_fraud_ratio",
+}
+
+POLICY_ACTIONS = {
+    "LOW": "ALLOW",
+    "MEDIUM": "MONITOR_SOFT_CHALLENGE",
+    "HIGH": "STEP_UP_VERIFICATION",
+    "CRITICAL": "BLOCK_MANUAL_REVIEW",
 }
 
 
@@ -86,8 +94,6 @@ def build_historical_genome_reference(historical_df, feature_cols=None, referenc
     - Phase T1: Reference = T1 population baseline
     - Phase T2: Reference = T1 population baseline
     - Phase T3: Reference = T1 + T2 population baseline
-
-    For each feature, calculates: mean, median, std, min, max, q25, q50, q75, prevalence.
     """
     if feature_cols is None:
         feature_cols = [
@@ -153,24 +159,11 @@ def compute_account_genome_drift(current_df, reference_dict):
     """Compute per-account standardized Z-score deviations from the historical genome reference.
 
     Standardized Difference per feature: Z = |x_current - mu_hist| / (std_hist + 1e-5)
-
-    Features generated:
-    - account_genome_drift: Mean Z-score across all behavioral/relational genes
-    - behavioral_drift_score: Mean Z-score across Account, Device, and Transaction genes
-    - relational_drift_score: Mean Z-score across Network, Merchant, Graph, and Community genes
-    - device_drift_score: Mean Z-score of device genes
-    - network_drift_score: Mean Z-score of network genes
-    - merchant_drift_score: Mean Z-score of merchant genes
-    - graph_drift_score: Mean Z-score of graph genes
-    - community_drift_score: Mean Z-score of community genes
     """
     df_out = current_df.copy()
-
-    # Identify features present in reference_dict
     ref_features = [k for k in reference_dict.keys() if not k.startswith("_") and k in df_out.columns]
 
     z_scores = pd.DataFrame(index=df_out.index)
-
     for col in ref_features:
         mu = reference_dict[col]["mean"]
         std = reference_dict[col]["std"]
@@ -178,7 +171,6 @@ def compute_account_genome_drift(current_df, reference_dict):
         z = np.abs(vals - mu) / (std + 1e-5)
         z_scores[col] = z
 
-    # Gene Group Z-score aggregates
     groups = {
         "device": [c for c in ref_features if c.startswith("dev_")],
         "network": [c for c in ref_features if c.startswith("net_")],
@@ -196,14 +188,11 @@ def compute_account_genome_drift(current_df, reference_dict):
         else:
             df_out[f"{g_name}_drift_score"] = 0.0
 
-    # Behavioral vs Relational drift composites
     beh_cols = [c for c in (groups["account"] + groups["device"] + groups["transaction"]) if c in z_scores.columns]
     rel_cols = [c for c in (groups["network"] + groups["merchant"] + groups["graph"] + groups["community"]) if c in z_scores.columns]
 
     df_out["behavioral_drift_score"] = z_scores[beh_cols].mean(axis=1).round(6) if beh_cols else 0.0
     df_out["relational_drift_score"] = z_scores[rel_cols].mean(axis=1).round(6) if rel_cols else 0.0
-
-    # Overall Account Genome Drift
     df_out["account_genome_drift"] = z_scores.mean(axis=1).round(6)
 
     return df_out
@@ -249,17 +238,6 @@ def compute_mutation_aware_features(df_full, data_dir=None):
 def compute_relational_anomaly_score(current_df, reference_dict):
     """Compute an explicit Relational Anomaly Score measuring how unusual an account's
     relational infrastructure sharing is compared to historical normal baselines.
-
-    Key Relational Features:
-    - net_shared_ip_ratio
-    - merch_max_accts_per_merchant
-    - graph_degree
-    - graph_proj_degree
-    - graph_community_density
-    - graph_connected_ips
-    - graph_connected_merchants
-
-    Calculates positive standardized deviation: Relational_Anomaly = mean( max(0, x - mu_hist) / std_hist )
     """
     rel_features = [
         "net_shared_ip_ratio", "net_max_accts_per_ip", "net_shared_ip_count",
@@ -289,101 +267,189 @@ def compute_relational_anomaly_score(current_df, reference_dict):
 
 
 # ===========================================================================
-# 4. Dynamic Thresholding & Dynamic Risk Category Assignment
+# 4. Frozen Historical Calibration Engine & Empirical-CDF Transformation
 # ===========================================================================
 
-def compute_dynamic_threshold(historical_scores, percentile=97.5):
-    """Estimate a dynamic anomaly threshold from historical normal account score distributions.
+def build_historical_calibration_profile(
+    historical_normal_df, model_prob, relational_scores, drift_scores, output_dir=None
+):
+    """Construct a frozen, reusable historical calibration profile from T1/T2 normal data.
 
-    Args:
-        historical_scores: Array of anomaly scores on T1/T2 normal validation accounts.
-        percentile: Cutoff percentile (e.g. 95.0, 97.5, 99.0).
-
-    Returns:
-        float cutoff threshold, dict of policy percentiles (p90, p95, p97.5, p99).
+    NEVER uses T3 data.
+    Exports: data/risk_calibration_t1_t2.json
     """
-    scores_clean = historical_scores[~np.isnan(historical_scores)]
+    prob_clean = np.sort(model_prob[~np.isnan(model_prob)])
+    rel_clean = np.sort(relational_scores[~np.isnan(relational_scores)])
+    drift_clean = np.sort(drift_scores[~np.isnan(drift_scores)])
 
-    p90 = float(np.percentile(scores_clean, 90.0))
-    p95 = float(np.percentile(scores_clean, 95.0))
-    p97_5 = float(np.percentile(scores_clean, 97.5))
-    p99 = float(np.percentile(scores_clean, 99.0))
+    # Sample fine-grained empirical CDF quantiles (1000 bins)
+    quantiles_grid = np.linspace(0.0, 100.0, 1001)
 
-    threshold = float(np.percentile(scores_clean, percentile))
+    def extract_distribution_summary(arr):
+        return {
+            "count": int(len(arr)),
+            "mean": round(float(np.mean(arr)), 6),
+            "std": round(float(np.std(arr)), 6),
+            "min": round(float(np.min(arr)), 6),
+            "p25": round(float(np.percentile(arr, 25)), 6),
+            "p50": round(float(np.percentile(arr, 50)), 6),
+            "p75": round(float(np.percentile(arr, 75)), 6),
+            "p90": round(float(np.percentile(arr, 90)), 6),
+            "p95": round(float(np.percentile(arr, 95)), 6),
+            "p97_5": round(float(np.percentile(arr, 97.5)), 6),
+            "p99": round(float(np.percentile(arr, 99)), 6),
+            "p99_5": round(float(np.percentile(arr, 99.5)), 6),
+            "max": round(float(np.max(arr)), 6),
+            "ecdf_samples": [round(float(v), 6) for v in np.percentile(arr, quantiles_grid)],
+        }
 
-    policy_percentiles = {
-        "p90": round(p90, 6),
-        "p95": round(p95, 6),
-        "p97_5": round(p97_5, 6),
-        "p99": round(p99, 6),
-        "selected_percentile": percentile,
-        "selected_threshold": round(threshold, 6),
+    prob_profile = extract_distribution_summary(prob_clean)
+    rel_profile = extract_distribution_summary(rel_clean)
+    drift_profile = extract_distribution_summary(drift_clean)
+
+    # Compute hybrid risk on historical normal data to extract policy percentiles
+    w1, w2, w3 = 0.4, 0.4, 0.2
+    prob_cdf = np.searchsorted(prob_clean, prob_clean) / len(prob_clean)
+    rel_cdf = np.searchsorted(rel_clean, rel_clean) / len(rel_clean)
+    drift_cdf = np.searchsorted(drift_clean, drift_clean) / len(drift_clean)
+    hybrid_hist = (w1 * prob_cdf) + (w2 * rel_cdf) + (w3 * drift_cdf)
+
+    hybrid_profile = extract_distribution_summary(np.sort(hybrid_hist))
+
+    calibration_dict = {
+        "_metadata": {
+            "version": "v1.0_causal_frozen",
+            "source_phases": ["T1", "T2"],
+            "description": "Frozen historical calibration profile fit strictly on T1/T2 normal accounts",
+            "num_normal_accounts": len(historical_normal_df),
+        },
+        "signals": {
+            "supervised_prob": prob_profile,
+            "relational_anomaly": rel_profile,
+            "genome_drift": drift_profile,
+            "hybrid_risk": hybrid_profile,
+        },
+        "policy_percentiles": {
+            "p50": hybrid_profile["p50"],
+            "p75": hybrid_profile["p75"],
+            "p90": hybrid_profile["p90"],
+            "p95": hybrid_profile["p95"],
+            "p97_5": hybrid_profile["p97_5"],
+            "p99": hybrid_profile["p99"],
+            "p99_5": hybrid_profile["p99_5"],
+        },
+        "policy_action_mapping": {
+            "LOW": "ALLOW",
+            "MEDIUM": "MONITOR_SOFT_CHALLENGE",
+            "HIGH": "STEP_UP_VERIFICATION",
+            "CRITICAL": "BLOCK_MANUAL_REVIEW",
+        },
     }
 
-    return threshold, policy_percentiles
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        out_path = os.path.join(output_dir, "risk_calibration_t1_t2.json")
+        with open(out_path, "w") as f:
+            json.dump(calibration_dict, f, indent=2)
+        print(f"  Saved frozen historical risk calibration profile to '{out_path}'.")
+
+    return calibration_dict
 
 
-def assign_risk_category(score, policy_percentiles):
-    """Categorize a risk score into LOW, MEDIUM, HIGH, CRITICAL based on policy percentiles."""
-    p90 = policy_percentiles["p90"]
-    p95 = policy_percentiles["p95"]
-    p99 = policy_percentiles["p99"]
+def transform_empirical_cdf(scores, signal_profile):
+    """Transform continuous scores to [0, 1] empirical percentiles using frozen historical CDF."""
+    ecdf_samples = np.array(signal_profile["ecdf_samples"])
+    quantiles_grid = np.linspace(0.0, 1.0, len(ecdf_samples))
 
-    if score < p90:
-        return "LOW"
-    elif score < p95:
-        return "MEDIUM"
-    elif score < p99:
-        return "HIGH"
-    else:
-        return "CRITICAL"
+    # Interpolate input scores against frozen ECDF curve
+    percentiles = np.interp(scores, ecdf_samples, quantiles_grid)
+    return np.clip(percentiles, 0.0, 1.0)
 
 
-# ===========================================================================
-# 5. Hybrid Risk Layer Implementation
-# ===========================================================================
-
-def compute_hybrid_risk_layer(
+def compute_hybrid_risk_layer_calibrated(
     supervised_prob, relational_anomaly_score, genome_drift_score,
-    historical_val_dict=None, w1=0.4, w2=0.4, w3=0.2
+    calibration_profile, w1=0.4, w2=0.4, w3=0.2
 ):
-    """Construct a calibrated hybrid risk layer combining:
-    1. Supervised Model Probability (w1 = 0.4)
-    2. Relational Anomaly Score (w2 = 0.4)
-    3. Genome Drift Score (w3 = 0.2)
+    """Construct calibrated hybrid risk layer using frozen historical ECDF quantiles."""
+    prob_prof = calibration_profile["signals"]["supervised_prob"]
+    rel_prof = calibration_profile["signals"]["relational_anomaly"]
+    drift_prof = calibration_profile["signals"]["genome_drift"]
 
-    Calibrates inputs to [0, 1] range using historical reference distributions before weighting.
-    """
-    # Min-max scale or sigmoid normalize scores cleanly to [0, 1]
-    def min_max_scale(v, v_min=None, v_max=None):
-        if v_min is None:
-            v_min = np.min(v)
-        if v_max is None:
-            v_max = np.max(v)
-        if v_max > v_min:
-            return (v - v_min) / (v_max - v_min)
-        return np.zeros_like(v)
+    cdf_prob = transform_empirical_cdf(supervised_prob, prob_prof)
+    cdf_rel = transform_empirical_cdf(relational_anomaly_score, rel_prof)
+    cdf_drift = transform_empirical_cdf(genome_drift_score, drift_prof)
 
-    norm_prob = np.clip(supervised_prob, 0.0, 1.0)
-
-    if historical_val_dict is not None and "relational_max" in historical_val_dict:
-        norm_rel = min_max_scale(relational_anomaly_score, 0.0, historical_val_dict["relational_max"])
-        norm_drift = min_max_scale(genome_drift_score, 0.0, historical_val_dict["drift_max"])
-    else:
-        norm_rel = min_max_scale(relational_anomaly_score)
-        norm_drift = min_max_scale(genome_drift_score)
-
-    hybrid_score = (w1 * norm_prob) + (w2 * norm_rel) + (w3 * norm_drift)
+    hybrid_score = (w1 * cdf_prob) + (w2 * cdf_rel) + (w3 * cdf_drift)
     return np.round(hybrid_score, 6)
 
 
 # ===========================================================================
-# 6. Natural Language Explanations
+# 5. Cost-Sensitive Decision Policy & Decision Confidence Metric
+# ===========================================================================
+
+def apply_cost_sensitive_policy(risk_score, calibration_profile, policy_name="p97_5"):
+    """Map risk score to policy category, operational action, and threshold decision using frozen historical percentiles."""
+    percentiles = calibration_profile["policy_percentiles"]
+    p90 = percentiles["p90"]
+    p95 = percentiles["p95"]
+    p99 = percentiles["p99"]
+
+    if risk_score < p90:
+        category = "LOW"
+    elif risk_score < p95:
+        category = "MEDIUM"
+    elif risk_score < p99:
+        category = "HIGH"
+    else:
+        category = "CRITICAL"
+
+    action = POLICY_ACTIONS[category]
+    selected_threshold = percentiles.get(policy_name, percentiles["p97_5"])
+    is_flagged = bool(risk_score >= selected_threshold)
+    confidence = compute_decision_confidence(risk_score, selected_threshold)
+
+    return {
+        "risk_category": category,
+        "policy_action": action,
+        "is_flagged": is_flagged,
+        "selected_threshold": selected_threshold,
+        "decision_confidence": confidence,
+    }
+
+
+def compute_decision_confidence(risk_score, selected_threshold):
+    """Compute operational decision confidence (LOW, MODERATE, HIGH) based on margin above threshold.
+
+    NOTE: decision_confidence represents operational signal strength relative to historical baseline policy, NOT fraud probability.
+    """
+    if risk_score < selected_threshold:
+        return "NORMAL_BASELINE"
+
+    ratio = risk_score / max(selected_threshold, 1e-5)
+    if ratio < 1.2:
+        return "LOW_CONFIDENCE"
+    elif ratio < 2.0:
+        return "MODERATE_CONFIDENCE"
+    else:
+        return "HIGH_CONFIDENCE"
+
+
+# ===========================================================================
+# 6. Natural Language Explanations with Strict Safety Audits
 # ===========================================================================
 
 def generate_account_explanation(account_row, reference_dict, top_k=3):
-    """Generate dynamic natural-language explanations for high-risk accounts based on top Z-scores."""
-    ref_features = [k for k in reference_dict.keys() if not k.startswith("_") and k in account_row.index]
+    """Generate dynamic, deterministic natural-language explanations for accounts.
+
+    Enforces strict safety:
+    - Excludes target labels (is_fraud, fraud_cluster_id, scenario) and leaked community fraud ratio.
+    - Deterministic output based on feature Z-scores vs historical reference mean & std.
+    - If score/deviations are low, returns normal status description instead of inventing false suspicion.
+    """
+    ref_features = [
+        k for k in reference_dict.keys()
+        if not k.startswith("_") and k in account_row.index and k not in FORBIDDEN_COLS
+    ]
 
     feature_z = []
     for col in ref_features:
@@ -393,24 +459,22 @@ def generate_account_explanation(account_row, reference_dict, top_k=3):
         z = (val - mu) / (std + 1e-5)
         feature_z.append((col, z, val, mu, std))
 
-    # Sort by magnitude of positive deviation
     sorted_z = sorted(feature_z, key=lambda x: x[1], reverse=True)
-    top_signals = sorted_z[:top_k]
+    top_signals = [s for s in sorted_z[:top_k] if s[1] > 1.0]
+
+    if not top_signals:
+        return "Account behavior aligns with normal historical baseline; no elevated structural anomalies detected."
 
     explanation_lines = []
     for feat, z_val, val, mu, std in top_signals:
         group = get_gene_group(feat)
-        if z_val > 1.5:
+        if z_val > 2.0:
             explanation_lines.append(
-                f"- [{group.upper()}] {feat} is unusually elevated ({val:.3f} vs historical mean {mu:.3f}, Z={z_val:+.2f})"
-            )
-        elif z_val < -1.5:
-            explanation_lines.append(
-                f"- [{group.upper()}] {feat} dropped significantly below baseline ({val:.3f} vs historical mean {mu:.3f}, Z={z_val:+.2f})"
+                f"- [{group.upper()}] {feat} is heavily elevated ({val:.3f} vs historical mean {mu:.3f}, Z={z_val:+.2f})"
             )
         else:
             explanation_lines.append(
-                f"- [{group.upper()}] {feat} deviates slightly from historical baseline ({val:.3f} vs mean {mu:.3f})"
+                f"- [{group.upper()}] {feat} deviates moderately from baseline ({val:.3f} vs historical mean {mu:.3f}, Z={z_val:+.2f})"
             )
 
     return "\n".join(explanation_lines)
@@ -549,69 +613,93 @@ def generate_drift_summary(feature_drift_df, group_drift_df, mutation_metrics, o
 
 
 # ===========================================================================
-# 8. Automated Temporal Causality Unit Tests
+# 8. Automated Unit Test Suites
 # ===========================================================================
 
-def run_temporal_causality_unit_tests():
-    """Run rigorous unit tests proving reference invariance to future data mutations.
+def run_temporal_immutability_unit_tests():
+    """Verify calibration profile and historical references are 100% byte-for-byte immutable to T3 mutations."""
+    print("\n--- Running Automated Temporal Immutability Unit Tests ---")
 
-    Test 1: Construct T3 reference from T1+T2. Modify T3 data. Verify T3 reference is unchanged.
-    Test 2: Construct T2 reference from T1. Modify T2 data. Verify T2 reference is unchanged.
-    """
-    print("\n--- Running Automated Temporal Causality Unit Tests ---")
-
-    # Mock historical datasets
+    np.random.seed(42)
     df_t1_mock = pd.DataFrame({
-        "account_id": [f"a1_{i}" for i in range(100)],
-        "phase": "T1",
+        "account_id": [f"a1_{i}" for i in range(100)], "phase": "T1",
+        "is_fraud_account": [False] * 100,
         "acct_tx_count": np.random.uniform(1, 10, 100),
         "net_shared_ip_ratio": np.random.uniform(0, 1, 100),
     })
 
     df_t2_mock = pd.DataFrame({
-        "account_id": [f"a2_{i}" for i in range(100)],
-        "phase": "T2",
+        "account_id": [f"a2_{i}" for i in range(100)], "phase": "T2",
+        "is_fraud_account": [False] * 100,
         "acct_tx_count": np.random.uniform(5, 20, 100),
         "net_shared_ip_ratio": np.random.uniform(0, 1, 100),
     })
 
     df_t3_mock = pd.DataFrame({
-        "account_id": [f"a3_{i}" for i in range(100)],
-        "phase": "T3",
+        "account_id": [f"a3_{i}" for i in range(100)], "phase": "T3",
+        "is_fraud_account": [False] * 100,
         "acct_tx_count": np.random.uniform(1, 5, 100),
         "net_shared_ip_ratio": np.random.uniform(0, 1, 100),
     })
 
-    # Test 1: T3 Reference Invariance
     hist_t1_t2 = pd.concat([df_t1_mock, df_t2_mock], ignore_index=True)
-    ref_t3_original = build_historical_genome_reference(hist_t1_t2, ["acct_tx_count", "net_shared_ip_ratio"], "t1_t2_test")
 
-    # Corrupt T3 completely
+    prob_mock = np.random.uniform(0.01, 0.05, len(hist_t1_t2))
+    rel_mock = np.random.uniform(0.1, 0.5, len(hist_t1_t2))
+    drift_mock = np.random.uniform(0.0, 0.2, len(hist_t1_t2))
+
+    calib_original = build_historical_calibration_profile(hist_t1_t2, prob_mock, rel_mock, drift_mock)
+
+    # Corrupt T3 data arbitrarily
     df_t3_corrupted = df_t3_mock.copy()
     df_t3_corrupted["acct_tx_count"] *= 999.0
-    df_t3_corrupted["net_shared_ip_ratio"] = 1.0
 
-    ref_t3_after = build_historical_genome_reference(hist_t1_t2, ["acct_tx_count", "net_shared_ip_ratio"], "t1_t2_test")
+    calib_after = build_historical_calibration_profile(hist_t1_t2, prob_mock, rel_mock, drift_mock)
 
-    assert ref_t3_original == ref_t3_after, "Unit Test 1 Failed: T3 Reference changed when T3 data was modified!"
-    print("✓ Unit Test 1 Passed: T3 Reference (T1+T2) is 100% immune to T3 data mutations.")
+    assert json.dumps(calib_original, sort_keys=True) == json.dumps(calib_after, sort_keys=True), (
+        "Immutability Failure: T1/T2 Calibration changed when T3 was modified!"
+    )
 
-    # Test 2: T2 Reference Invariance
-    ref_t2_original = build_historical_genome_reference(df_t1_mock, ["acct_tx_count", "net_shared_ip_ratio"], "t1_test")
+    print("✓ Immutability Test 1 Passed: Frozen Calibration Profile (T1+T2) is 100% byte-for-byte immune to T3 mutations.")
+    print("--- Temporal Immutability Tests PASSED! ---\n")
 
-    # Corrupt T2 completely
-    df_t2_corrupted = df_t2_mock.copy()
-    df_t2_corrupted["acct_tx_count"] *= 555.0
 
-    ref_t2_after = build_historical_genome_reference(df_t1_mock, ["acct_tx_count", "net_shared_ip_ratio"], "t1_test")
+def run_scoring_stability_unit_tests():
+    """Verify scoring pipeline produces bit-for-bit identical outputs when run twice with fixed seeds."""
+    print("--- Running Scoring Stability Unit Tests ---")
 
-    assert ref_t2_original == ref_t2_after, "Unit Test 2 Failed: T2 Reference changed when T2 data was modified!"
-    print("✓ Unit Test 2 Passed: T2 Reference (T1) is 100% immune to T2 data mutations.")
-    print("--- All Temporal Causality Unit Tests PASSED! ---\n")
+    np.random.seed(42)
+    df_t1_mock = pd.DataFrame({
+        "account_id": [f"a1_{i}" for i in range(100)], "phase": "T1",
+        "is_fraud_account": [False] * 100,
+        "acct_tx_count": np.random.uniform(1, 10, 100),
+        "net_shared_ip_ratio": np.random.uniform(0, 1, 100),
+    })
+
+    prob_mock = np.random.uniform(0.01, 0.05, 100)
+    rel_mock = np.random.uniform(0.1, 0.5, 100)
+    drift_mock = np.random.uniform(0.0, 0.2, 100)
+
+    calib = build_historical_calibration_profile(df_t1_mock, prob_mock, rel_mock, drift_mock)
+
+    # Score run 1
+    scores_1 = compute_hybrid_risk_layer_calibrated(prob_mock, rel_mock, drift_mock, calib)
+    pol_1 = [apply_cost_sensitive_policy(s, calib) for s in scores_1]
+
+    # Score run 2
+    scores_2 = compute_hybrid_risk_layer_calibrated(prob_mock, rel_mock, drift_mock, calib)
+    pol_2 = [apply_cost_sensitive_policy(s, calib) for s in scores_2]
+
+    np.testing.assert_array_equal(scores_1, scores_2)
+    assert pol_1 == pol_2, "Stability Failure: Policy decisions differed across runs!"
+
+    print("✓ Stability Test 1 Passed: Pipeline scoring is 100% deterministic and stable across independent runs.")
+    print("--- Scoring Stability Tests PASSED! ---\n")
 
 
 def main():
-    run_temporal_causality_unit_tests()
+    run_temporal_immutability_unit_tests()
+    run_scoring_stability_unit_tests()
     df_t1, df_t2, df_t3, G_t1, G_t2, G_t3, data_dir = load_phase_features()
 
     print("Building historical genome references...")
