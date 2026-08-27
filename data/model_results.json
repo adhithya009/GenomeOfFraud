@@ -57,229 +57,229 @@
     {
       "feature_set": "Baseline",
       "model": "Logistic Regression",
-      "pr_auc": 0.5036,
-      "roc_auc": 0.7285,
-      "precision": 0.6667,
+      "pr_auc": 0.5043,
+      "roc_auc": 0.7637,
+      "precision": 0.3333,
       "recall": 0.5,
-      "f1": 0.5714,
-      "best_threshold": 0.85
+      "f1": 0.4,
+      "best_threshold": 0.9
     },
     {
       "feature_set": "Baseline",
       "model": "Random Forest",
-      "pr_auc": 0.1356,
+      "pr_auc": 0.5022,
       "roc_auc": 0.7204,
-      "precision": 0.3333,
+      "precision": 0.6667,
       "recall": 0.5,
-      "f1": 0.4,
-      "best_threshold": 0.25
+      "f1": 0.5714,
+      "best_threshold": 0.45
     },
     {
       "feature_set": "Baseline",
       "model": "XGBoost",
-      "pr_auc": 0.1868,
-      "roc_auc": 0.7154,
-      "precision": 0.4,
+      "pr_auc": 0.5032,
+      "roc_auc": 0.6978,
+      "precision": 0.6667,
       "recall": 0.5,
-      "f1": 0.4444,
-      "best_threshold": 0.1
+      "f1": 0.5714,
+      "best_threshold": 0.45
     },
     {
       "feature_set": "FraudGenome",
       "model": "Logistic Regression",
-      "pr_auc": 0.5064,
-      "roc_auc": 0.834,
-      "precision": 0.6667,
+      "pr_auc": 0.5169,
+      "roc_auc": 0.9322,
+      "precision": 0.4,
       "recall": 0.5,
-      "f1": 0.5714,
-      "best_threshold": 0.8
+      "f1": 0.4444,
+      "best_threshold": 0.6
     },
     {
       "feature_set": "FraudGenome",
       "model": "Random Forest",
-      "pr_auc": 0.2939,
-      "roc_auc": 0.7218,
-      "precision": 0.4,
+      "pr_auc": 0.512,
+      "roc_auc": 0.8435,
+      "precision": 1.0,
       "recall": 0.5,
-      "f1": 0.4444,
-      "best_threshold": 0.3
+      "f1": 0.6667,
+      "best_threshold": 0.45
     },
     {
       "feature_set": "FraudGenome",
       "model": "XGBoost",
-      "pr_auc": 0.2111,
-      "roc_auc": 0.6539,
-      "precision": 0.5,
-      "recall": 0.25,
-      "f1": 0.3333,
-      "best_threshold": 0.15
+      "pr_auc": 0.505,
+      "roc_auc": 0.8011,
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1": 0.6667,
+      "best_threshold": 0.6
     }
   ],
   "best_validation_model": {
     "feature_set": "FraudGenome",
     "model": "Logistic Regression",
-    "val_pr_auc": 0.5064,
-    "optimal_threshold": 0.8
+    "val_pr_auc": 0.5169,
+    "optimal_threshold": 0.6
   },
   "final_test_evaluation": {
-    "pr_auc": 0.7708,
-    "roc_auc": 0.9989,
-    "precision": 0.6667,
-    "recall": 0.5,
-    "f1": 0.5714,
+    "pr_auc": 0.6175,
+    "roc_auc": 0.9797,
+    "precision": 0.6,
+    "recall": 0.75,
+    "f1": 0.6667,
     "confusion_matrix": [
       [
-        898,
-        1
+        897,
+        2
       ],
       [
-        2,
-        2
+        1,
+        3
       ]
     ],
-    "tn": 898,
-    "fp": 1,
-    "fn": 2,
-    "tp": 2,
-    "fp_count": 1,
-    "fn_count": 2,
-    "fpr": 0.001112,
-    "fraud_detection_rate": 0.5
+    "tn": 897,
+    "fp": 2,
+    "fn": 1,
+    "tp": 3,
+    "fp_count": 2,
+    "fn_count": 1,
+    "fpr": 0.002225,
+    "fraud_detection_rate": 0.75
   },
   "test_comparison": {
     "baseline_xgb": {
-      "pr_auc": 0.5579,
-      "roc_auc": 0.9841,
-      "precision": 0.3333,
-      "recall": 0.5,
+      "pr_auc": 0.7375,
+      "roc_auc": 0.9953,
+      "precision": 1.0,
+      "recall": 0.25,
       "f1": 0.4,
       "confusion_matrix": [
         [
-          895,
-          4
+          899,
+          0
         ],
         [
-          2,
-          2
+          3,
+          1
         ]
       ],
-      "tn": 895,
-      "fp": 4,
-      "fn": 2,
-      "tp": 2,
-      "fp_count": 4,
-      "fn_count": 2,
-      "fpr": 0.004449,
-      "fraud_detection_rate": 0.5
+      "tn": 899,
+      "fp": 0,
+      "fn": 3,
+      "tp": 1,
+      "fp_count": 0,
+      "fn_count": 3,
+      "fpr": 0.0,
+      "fraud_detection_rate": 0.25
     },
     "fraudgenome_xgb": {
-      "pr_auc": 0.5533,
-      "roc_auc": 0.9814,
-      "precision": 0.5,
+      "pr_auc": 0.7929,
+      "roc_auc": 0.9986,
+      "precision": 1.0,
       "recall": 0.5,
-      "f1": 0.5,
+      "f1": 0.6667,
       "confusion_matrix": [
         [
-          897,
-          2
+          899,
+          0
         ],
         [
           2,
           2
         ]
       ],
-      "tn": 897,
-      "fp": 2,
+      "tn": 899,
+      "fp": 0,
       "fn": 2,
       "tp": 2,
-      "fp_count": 2,
+      "fp_count": 0,
       "fn_count": 2,
-      "fpr": 0.002225,
+      "fpr": 0.0,
       "fraud_detection_rate": 0.5
     },
-    "pr_auc_improvement": -0.0046,
-    "f1_improvement": 0.1
+    "pr_auc_improvement": 0.0554,
+    "f1_improvement": 0.2667
   },
   "top_15_features": [
     {
       "feature": "graph_connected_ips",
-      "importance": 0.36001068353652954,
+      "importance": 0.4521421194076538,
       "gene_group": "Graph"
     },
     {
       "feature": "net_unique_ip_count",
-      "importance": 0.23883603513240814,
+      "importance": 0.195744127035141,
       "gene_group": "Network"
     },
     {
-      "feature": "tx_velocity",
-      "importance": 0.11483832448720932,
-      "gene_group": "Transaction"
-    },
-    {
-      "feature": "acct_kyc_unverified",
-      "importance": 0.050490446388721466,
+      "feature": "acct_tx_velocity",
+      "importance": 0.08108901977539062,
       "gene_group": "Account"
     },
     {
       "feature": "tx_time_spread_hours",
-      "importance": 0.0350237675011158,
+      "importance": 0.0373677983880043,
       "gene_group": "Transaction"
-    },
-    {
-      "feature": "net_tx_per_ip",
-      "importance": 0.018205981701612473,
-      "gene_group": "Network"
-    },
-    {
-      "feature": "acct_active_days",
-      "importance": 0.018011726438999176,
-      "gene_group": "Account"
-    },
-    {
-      "feature": "tx_amount_concentration",
-      "importance": 0.01685340143740177,
-      "gene_group": "Transaction"
-    },
-    {
-      "feature": "acct_amount_total",
-      "importance": 0.01683920808136463,
-      "gene_group": "Account"
     },
     {
       "feature": "acct_tx_count",
-      "importance": 0.013648283667862415,
+      "importance": 0.032743897289037704,
       "gene_group": "Account"
     },
     {
-      "feature": "merch_avg_age_days",
-      "importance": 0.01349634863436222,
-      "gene_group": "Merchant"
-    },
-    {
-      "feature": "net_shared_ip_ratio",
-      "importance": 0.009456496685743332,
+      "feature": "net_tx_per_ip",
+      "importance": 0.025676164776086807,
       "gene_group": "Network"
     },
     {
       "feature": "merch_top_category",
-      "importance": 0.008442115969955921,
+      "importance": 0.015044902451336384,
       "gene_group": "Merchant"
     },
     {
-      "feature": "acct_amount_std",
-      "importance": 0.007934024557471275,
+      "feature": "merch_concentration",
+      "importance": 0.014478431083261967,
+      "gene_group": "Merchant"
+    },
+    {
+      "feature": "acct_amount_total",
+      "importance": 0.014408894814550877,
       "gene_group": "Account"
     },
     {
+      "feature": "tx_amount_concentration",
+      "importance": 0.012888636440038681,
+      "gene_group": "Transaction"
+    },
+    {
       "feature": "net_ip_concentration",
-      "importance": 0.00632011191919446,
+      "importance": 0.012358731590211391,
       "gene_group": "Network"
+    },
+    {
+      "feature": "graph_proj_weighted_degree",
+      "importance": 0.011132552288472652,
+      "gene_group": "Graph"
+    },
+    {
+      "feature": "acct_amount_std",
+      "importance": 0.009803177788853645,
+      "gene_group": "Account"
+    },
+    {
+      "feature": "dev_unique_count",
+      "importance": 0.009031135588884354,
+      "gene_group": "Device"
+    },
+    {
+      "feature": "tx_weekend_ratio",
+      "importance": 0.008528604172170162,
+      "gene_group": "Transaction"
     }
   ],
   "temporal_experiment": {
-    "pr_auc": 0.1045,
-    "roc_auc": 0.55,
+    "pr_auc": 0.1377,
+    "roc_auc": 0.7573,
     "precision": 1.0,
     "recall": 0.1,
     "f1": 0.1818,
@@ -301,5 +301,127 @@
     "fn_count": 9,
     "fpr": 0.0,
     "fraud_detection_rate": 0.1
+  },
+  "temporal_drift_experiments": {
+    "Exp A: Temporal Baseline": {
+      "feature_set_name": "Exp A: Temporal Baseline",
+      "num_features": 25,
+      "val_tuned_threshold": 0.05,
+      "t3_evaluation": {
+        "pr_auc": 0.1241,
+        "roc_auc": 0.808,
+        "precision": 1.0,
+        "recall": 0.1,
+        "f1": 0.1818,
+        "confusion_matrix": [
+          [
+            1990,
+            0
+          ],
+          [
+            9,
+            1
+          ]
+        ],
+        "tn": 1990,
+        "fp": 0,
+        "fn": 9,
+        "tp": 1,
+        "fp_count": 0,
+        "fn_count": 9,
+        "fpr": 0.0,
+        "fraud_detection_rate": 0.1
+      }
+    },
+    "Exp B: Temporal FraudGenome": {
+      "feature_set_name": "Exp B: Temporal FraudGenome",
+      "num_features": 45,
+      "val_tuned_threshold": 0.05,
+      "t3_evaluation": {
+        "pr_auc": 0.1377,
+        "roc_auc": 0.7573,
+        "precision": 1.0,
+        "recall": 0.1,
+        "f1": 0.1818,
+        "confusion_matrix": [
+          [
+            1990,
+            0
+          ],
+          [
+            9,
+            1
+          ]
+        ],
+        "tn": 1990,
+        "fp": 0,
+        "fn": 9,
+        "tp": 1,
+        "fp_count": 0,
+        "fn_count": 9,
+        "fpr": 0.0,
+        "fraud_detection_rate": 0.1
+      }
+    },
+    "Exp C: FraudGenome + Mutation-Aware": {
+      "feature_set_name": "Exp C: FraudGenome + Mutation-Aware",
+      "num_features": 52,
+      "val_tuned_threshold": 0.05,
+      "t3_evaluation": {
+        "pr_auc": 0.114,
+        "roc_auc": 0.5959,
+        "precision": 1.0,
+        "recall": 0.1,
+        "f1": 0.1818,
+        "confusion_matrix": [
+          [
+            1990,
+            0
+          ],
+          [
+            9,
+            1
+          ]
+        ],
+        "tn": 1990,
+        "fp": 0,
+        "fn": 9,
+        "tp": 1,
+        "fp_count": 0,
+        "fn_count": 9,
+        "fpr": 0.0,
+        "fraud_detection_rate": 0.1
+      }
+    },
+    "Exp D: Relational-Only Mutation": {
+      "feature_set_name": "Exp D: Relational-Only Mutation",
+      "num_features": 23,
+      "val_tuned_threshold": 0.05,
+      "t3_evaluation": {
+        "pr_auc": 0.2489,
+        "roc_auc": 0.9221,
+        "precision": 1.0,
+        "recall": 0.1,
+        "f1": 0.1818,
+        "confusion_matrix": [
+          [
+            1990,
+            0
+          ],
+          [
+            9,
+            1
+          ]
+        ],
+        "tn": 1990,
+        "fp": 0,
+        "fn": 9,
+        "tp": 1,
+        "fp_count": 0,
+        "fn_count": 9,
+        "fpr": 0.0,
+        "fraud_detection_rate": 0.1
+      }
+    }
   }
 }

@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import pandas as pd
+from genome_drift import compute_mutation_aware_features
 
 
 # ---------------------------------------------------------------------------
@@ -13,7 +14,11 @@ CATEGORY_MAP = {"digital": 0, "food": 1, "retail": 2, "travel": 3}
 # Binary / categorical features excluded from min-max normalization
 NON_SCALED_COLS = {"acct_kyc_unverified", "merch_top_category"}
 
-GENE_PREFIXES = ["acct_", "dev_", "net_", "tx_", "merch_", "graph_"]
+GENE_PREFIXES = [
+    "acct_", "dev_", "net_", "tx_", "merch_", "graph_",
+    "relational_", "topology_", "behavioral_", "genome_",
+]
+
 
 
 # ---------------------------------------------------------------------------
@@ -566,7 +571,12 @@ def main():
 
     # Stack all phases
     genome_full = pd.concat(genome_phases, ignore_index=True)
-    print(f"\nFull genome shape: {genome_full.shape}")
+    print(f"\nFull genome shape before mutation features: {genome_full.shape}")
+
+    # Compute mutation-aware higher level features
+    print("Computing mutation-aware behavioral & relational features...")
+    genome_full = compute_mutation_aware_features(genome_full, data_dir)
+    print(f"Full genome shape with mutation features: {genome_full.shape}")
 
     # Global normalization
     print("Normalizing features globally across all phases...")
