@@ -1,0 +1,1058 @@
+{
+  "detected_t3_fraud": {
+    "account_id": "42a8a15c-0c00-4fb6-9df7-e010074b21cd",
+    "phase": "T3",
+    "is_fraud_ground_truth": true,
+    "risk_summary": {
+      "final_risk_score": 0.995849,
+      "risk_category": "CRITICAL",
+      "policy_action": "BLOCK_MANUAL_REVIEW",
+      "decision_confidence": "LOW_CONFIDENCE",
+      "threshold_used": 0.946558
+    },
+    "risk_components": {
+      "raw_signals": {
+        "supervised_prob": 0.000282,
+        "relational_anomaly_score": 1.500782,
+        "genome_drift_score": 2.472168
+      },
+      "cdf_percentiles": {
+        "supervised_prob_cdf": 0.989,
+        "relational_anomaly_cdf": 0.997874,
+        "genome_drift_cdf": 1.0
+      },
+      "hybrid_weights": {
+        "supervised_weight": 0.3,
+        "relational_weight": 0.4,
+        "drift_weight": 0.3
+      },
+      "component_contributions": {
+        "supervised_risk_contribution": 0.2967,
+        "relational_anomaly_contribution": 0.399149,
+        "genome_drift_contribution": 0.3
+      },
+      "final_hybrid_risk_score": 0.995849
+    },
+    "top_shap_features": [
+      {
+        "feature": "acct_tx_count",
+        "gene_group": "Account",
+        "value": 0.3043,
+        "shap_value": -6.474699,
+        "abs_shap": 6.474699
+      },
+      {
+        "feature": "acct_tx_velocity",
+        "gene_group": "Account",
+        "value": 0.3043,
+        "shap_value": -1.254482,
+        "abs_shap": 1.254482
+      },
+      {
+        "feature": "tx_velocity",
+        "gene_group": "Transaction",
+        "value": 0.3043,
+        "shap_value": -0.222387,
+        "abs_shap": 0.222387
+      },
+      {
+        "feature": "graph_weighted_degree",
+        "gene_group": "Graph",
+        "value": 0.3043,
+        "shap_value": -0.100382,
+        "abs_shap": 0.100382
+      },
+      {
+        "feature": "acct_amount_total",
+        "gene_group": "Account",
+        "value": 0.4082,
+        "shap_value": -0.088428,
+        "abs_shap": 0.088428
+      },
+      {
+        "feature": "acct_active_days",
+        "gene_group": "Account",
+        "value": 0.6364,
+        "shap_value": -0.079223,
+        "abs_shap": 0.079223
+      },
+      {
+        "feature": "graph_degree",
+        "gene_group": "Graph",
+        "value": 0.8462,
+        "shap_value": 0.035169,
+        "abs_shap": 0.035169
+      },
+      {
+        "feature": "acct_amount_avg",
+        "gene_group": "Account",
+        "value": 0.5773,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      },
+      {
+        "feature": "acct_amount_std",
+        "gene_group": "Account",
+        "value": 0.3877,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      },
+      {
+        "feature": "acct_age_days",
+        "gene_group": "Account",
+        "value": 0.7677,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      }
+    ],
+    "relational_anomaly_signals": [
+      {
+        "feature": "graph_proj_degree",
+        "gene_group": "Graph",
+        "current_value": 0.7949,
+        "historical_mean": 0.3243,
+        "historical_std": 0.1461,
+        "positive_std_elevation": 3.2209
+      },
+      {
+        "feature": "graph_degree",
+        "gene_group": "Graph",
+        "current_value": 0.8462,
+        "historical_mean": 0.3846,
+        "historical_std": 0.1458,
+        "positive_std_elevation": 3.1651
+      },
+      {
+        "feature": "graph_connected_merchants",
+        "gene_group": "Graph",
+        "current_value": 0.8333,
+        "historical_mean": 0.3223,
+        "historical_std": 0.1668,
+        "positive_std_elevation": 3.064
+      },
+      {
+        "feature": "net_shared_ip_count",
+        "gene_group": "Network",
+        "current_value": 0.6,
+        "historical_mean": 0.3029,
+        "historical_std": 0.1585,
+        "positive_std_elevation": 1.8747
+      },
+      {
+        "feature": "graph_connected_ips",
+        "gene_group": "Graph",
+        "current_value": 0.6,
+        "historical_mean": 0.3171,
+        "historical_std": 0.1556,
+        "positive_std_elevation": 1.8179
+      }
+    ],
+    "genome_drift_breakdown": {
+      "gene_group_drift_scores": {
+        "device_drift_score": 0.9684,
+        "network_drift_score": 0.8775,
+        "merchant_drift_score": 1.4297,
+        "graph_drift_score": 3.999,
+        "community_drift_score": 0.8043,
+        "transaction_drift_score": 1.0953,
+        "account_drift_score": 1.4749
+      },
+      "top_feature_deviations": [
+        {
+          "feature": "graph_drift_score",
+          "gene_group": "Graph",
+          "current_value": 3.999,
+          "historical_mean": 0.1704,
+          "historical_std": 0.141,
+          "z_score": 27.153,
+          "abs_z_score": 27.153,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "account_drift_score",
+          "gene_group": "Other",
+          "current_value": 1.4749,
+          "historical_mean": 0.1442,
+          "historical_std": 0.0826,
+          "z_score": 16.1079,
+          "abs_z_score": 16.1079,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "account_genome_drift",
+          "gene_group": "Other",
+          "current_value": 2.4722,
+          "historical_mean": 0.2188,
+          "historical_std": 0.158,
+          "z_score": 14.2615,
+          "abs_z_score": 14.2615,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "relational_drift_score",
+          "gene_group": "Other",
+          "current_value": 2.1455,
+          "historical_mean": 0.247,
+          "historical_std": 0.1718,
+          "z_score": 11.0524,
+          "abs_z_score": 11.0524,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "behavioral_drift_score",
+          "gene_group": "Other",
+          "current_value": 1.1929,
+          "historical_mean": 0.1874,
+          "historical_std": 0.1224,
+          "z_score": 8.215,
+          "abs_z_score": 8.215,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "merchant_drift_score",
+          "gene_group": "Other",
+          "current_value": 1.4297,
+          "historical_mean": 0.3224,
+          "historical_std": 0.1704,
+          "z_score": 6.4993,
+          "abs_z_score": 6.4993,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "device_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.9684,
+          "historical_mean": 0.1762,
+          "historical_std": 0.1797,
+          "z_score": 4.4078,
+          "abs_z_score": 4.4078,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "behavioral_shift_score",
+          "gene_group": "Other",
+          "current_value": 1.0652,
+          "historical_mean": 0.2497,
+          "historical_std": 0.1926,
+          "z_score": 4.2331,
+          "abs_z_score": 4.2331,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "relational_anomaly_score",
+          "gene_group": "Other",
+          "current_value": 0.8048,
+          "historical_mean": 0.2095,
+          "historical_std": 0.1413,
+          "z_score": 4.2121,
+          "abs_z_score": 4.2121,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "community_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.8043,
+          "historical_mean": 0.2017,
+          "historical_std": 0.1519,
+          "z_score": 3.9668,
+          "abs_z_score": 3.9668,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        }
+      ]
+    },
+    "human_readable_explanation": "## GenomeOfFraud Risk Explanation \u2014 Account 42a8a15c-0c00-4fb6-9df7-e010074b21cd\n\n**Risk Level:** CRITICAL\n**Policy Action:** `BLOCK_MANUAL_REVIEW`\n**Final Risk Score:** 0.9958 (Decision Threshold: 0.9466)\n**Decision Signal Confidence:** LOW_CONFIDENCE\n\n### Risk Components & Hybrid Layer Decomposition\n* **Supervised Risk Probability:** 0.0003 (CDF Percentile: 0.9890, Contribution: +0.2967)\n* **Relational Anomaly Score:** 1.5008 (CDF Percentile: 0.9979, Contribution: +0.3991)\n* **Account Genome Drift Score:** 2.4722 (CDF Percentile: 1.0000, Contribution: +0.3000)\n\n### Primary Evidence Summary\n\n**NETWORK & RELATIONAL INFRASTRUCTURE (GRAPH)**\n  WHAT: Structural infrastructure co-usage anomaly detected.\n  WHY: `graph_proj_degree` is substantially elevated (Current: 0.7949, Baseline Mean: 0.3243).\n  HOW MUCH: +3.2\u03c3 standard deviations above historical normal.\n  COMPARED TO WHAT: Historical T1/T2 normal population baseline.\n\n**SUPERVISED MODEL ATTRIBUTION (ACCOUNT)**\n  WHAT: Supervised model attributes strongest predictive weight to `acct_tx_count`.\n  WHY: Value = 0.3043 contributes a SHAP attribution value of -6.4747 to predicted fraud risk.\n  HOW MUCH: Top model feature (Rank 1 by local attribution magnitude).\n  COMPARED TO WHAT: Trained XGBoost supervised model background.\n\n**HISTORICAL GENOME DRIFT (GRAPH)**\n  WHAT: Behavioral genome mutation relative to historical account reference.\n  WHY: `graph_drift_score` exhibits higher than historical baseline.\n  HOW MUCH: +27.15\u03c3 standard Z-score shift (Current: 3.999 vs Baseline: 0.1704).\n  COMPARED TO WHAT: Historical T1/T2 reference genome profile.\n\n> **Disclaimer**: SHAP values indicate model attribution, not causality. Relational anomaly and genome drift describe statistical abnormalities, not ground-truth fraud. Final decisioning combines all three layers.",
+    "case_study_type": "detected_t3_fraud"
+  },
+  "missed_t3_fraud": {
+    "account_id": "a06c2b65-08c2-4d1c-b208-e2c1f7f0ce5f",
+    "phase": "T3",
+    "is_fraud_ground_truth": true,
+    "risk_summary": {
+      "final_risk_score": 0.578437,
+      "risk_category": "MEDIUM",
+      "policy_action": "MONITOR_SOFT_CHALLENGE",
+      "decision_confidence": "NORMAL_BASELINE",
+      "threshold_used": 0.946558
+    },
+    "risk_components": {
+      "raw_signals": {
+        "supervised_prob": 0.000263,
+        "relational_anomaly_score": 0.501107,
+        "genome_drift_score": 1.018459
+      },
+      "cdf_percentiles": {
+        "supervised_prob_cdf": 0.0,
+        "relational_anomaly_cdf": 0.757719,
+        "genome_drift_cdf": 0.917831
+      },
+      "hybrid_weights": {
+        "supervised_weight": 0.3,
+        "relational_weight": 0.4,
+        "drift_weight": 0.3
+      },
+      "component_contributions": {
+        "supervised_risk_contribution": 0.0,
+        "relational_anomaly_contribution": 0.303088,
+        "genome_drift_contribution": 0.275349
+      },
+      "final_hybrid_risk_score": 0.578437
+    },
+    "top_shap_features": [
+      {
+        "feature": "acct_tx_count",
+        "gene_group": "Account",
+        "value": 0.2609,
+        "shap_value": -6.474699,
+        "abs_shap": 6.474699
+      },
+      {
+        "feature": "acct_tx_velocity",
+        "gene_group": "Account",
+        "value": 0.2609,
+        "shap_value": -1.254482,
+        "abs_shap": 1.254482
+      },
+      {
+        "feature": "tx_velocity",
+        "gene_group": "Transaction",
+        "value": 0.2609,
+        "shap_value": -0.222387,
+        "abs_shap": 0.222387
+      },
+      {
+        "feature": "graph_weighted_degree",
+        "gene_group": "Graph",
+        "value": 0.2609,
+        "shap_value": -0.100382,
+        "abs_shap": 0.100382
+      },
+      {
+        "feature": "acct_amount_total",
+        "gene_group": "Account",
+        "value": 0.2322,
+        "shap_value": -0.088428,
+        "abs_shap": 0.088428
+      },
+      {
+        "feature": "acct_active_days",
+        "gene_group": "Account",
+        "value": 0.3636,
+        "shap_value": -0.079223,
+        "abs_shap": 0.079223
+      },
+      {
+        "feature": "graph_degree",
+        "gene_group": "Graph",
+        "value": 0.4615,
+        "shap_value": -0.035016,
+        "abs_shap": 0.035016
+      },
+      {
+        "feature": "acct_amount_avg",
+        "gene_group": "Account",
+        "value": 0.3831,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      },
+      {
+        "feature": "acct_amount_std",
+        "gene_group": "Account",
+        "value": 0.275,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      },
+      {
+        "feature": "acct_age_days",
+        "gene_group": "Account",
+        "value": 0.6061,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      }
+    ],
+    "relational_anomaly_signals": [
+      {
+        "feature": "graph_community_shared_ip_ratio",
+        "gene_group": "Community",
+        "current_value": 1.0,
+        "historical_mean": 0.5269,
+        "historical_std": 0.2284,
+        "positive_std_elevation": 2.0711
+      },
+      {
+        "feature": "merch_max_accts_per_merchant",
+        "gene_group": "Merchant",
+        "current_value": 0.9032,
+        "historical_mean": 0.6888,
+        "historical_std": 0.1799,
+        "positive_std_elevation": 1.1919
+      },
+      {
+        "feature": "net_shared_ip_count",
+        "gene_group": "Network",
+        "current_value": 0.4,
+        "historical_mean": 0.3029,
+        "historical_std": 0.1585,
+        "positive_std_elevation": 0.6127
+      },
+      {
+        "feature": "graph_connected_ips",
+        "gene_group": "Graph",
+        "current_value": 0.4,
+        "historical_mean": 0.3171,
+        "historical_std": 0.1556,
+        "positive_std_elevation": 0.5325
+      },
+      {
+        "feature": "graph_degree",
+        "gene_group": "Graph",
+        "current_value": 0.4615,
+        "historical_mean": 0.3846,
+        "historical_std": 0.1458,
+        "positive_std_elevation": 0.5274
+      }
+    ],
+    "genome_drift_breakdown": {
+      "gene_group_drift_scores": {
+        "device_drift_score": 0.4436,
+        "network_drift_score": 0.4929,
+        "merchant_drift_score": 0.751,
+        "graph_drift_score": 0.762,
+        "community_drift_score": 1.1234,
+        "transaction_drift_score": 0.6335,
+        "account_drift_score": 0.8053
+      },
+      "top_feature_deviations": [
+        {
+          "feature": "account_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.8053,
+          "historical_mean": 0.1442,
+          "historical_std": 0.0826,
+          "z_score": 8.0032,
+          "abs_z_score": 8.0032,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "community_drift_score",
+          "gene_group": "Other",
+          "current_value": 1.1234,
+          "historical_mean": 0.2017,
+          "historical_std": 0.1519,
+          "z_score": 6.067,
+          "abs_z_score": 6.067,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "account_genome_drift",
+          "gene_group": "Other",
+          "current_value": 1.0185,
+          "historical_mean": 0.2188,
+          "historical_std": 0.158,
+          "z_score": 5.0608,
+          "abs_z_score": 5.0608,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "graph_drift_score",
+          "gene_group": "Graph",
+          "current_value": 0.762,
+          "historical_mean": 0.1704,
+          "historical_std": 0.141,
+          "z_score": 4.1961,
+          "abs_z_score": 4.1961,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "behavioral_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.6356,
+          "historical_mean": 0.1874,
+          "historical_std": 0.1224,
+          "z_score": 3.6611,
+          "abs_z_score": 3.6611,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "relational_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.7433,
+          "historical_mean": 0.247,
+          "historical_std": 0.1718,
+          "z_score": 2.8894,
+          "abs_z_score": 2.8894,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "merchant_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.751,
+          "historical_mean": 0.3224,
+          "historical_std": 0.1704,
+          "z_score": 2.5155,
+          "abs_z_score": 2.5155,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "graph_community_shared_ip_ratio",
+          "gene_group": "Community",
+          "current_value": 1.0,
+          "historical_mean": 0.5269,
+          "historical_std": 0.2284,
+          "z_score": 2.0711,
+          "abs_z_score": 2.0711,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "device_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.4436,
+          "historical_mean": 0.1762,
+          "historical_std": 0.1797,
+          "z_score": 1.4876,
+          "abs_z_score": 1.4876,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "tx_hour_mode",
+          "gene_group": "Transaction",
+          "current_value": 0.6957,
+          "historical_mean": 0.2966,
+          "historical_std": 0.2695,
+          "z_score": 1.4807,
+          "abs_z_score": 1.4807,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        }
+      ]
+    },
+    "human_readable_explanation": "## GenomeOfFraud Risk Explanation \u2014 Account a06c2b65-08c2-4d1c-b208-e2c1f7f0ce5f\n\n**Risk Level:** MEDIUM\n**Policy Action:** `MONITOR_SOFT_CHALLENGE`\n**Final Risk Score:** 0.5784 (Decision Threshold: 0.9466)\n**Decision Signal Confidence:** NORMAL_BASELINE\n\n### Risk Components & Hybrid Layer Decomposition\n* **Supervised Risk Probability:** 0.0003 (CDF Percentile: 0.0000, Contribution: +0.0000)\n* **Relational Anomaly Score:** 0.5011 (CDF Percentile: 0.7577, Contribution: +0.3031)\n* **Account Genome Drift Score:** 1.0185 (CDF Percentile: 0.9178, Contribution: +0.2753)\n\n### Primary Evidence Summary\n\n**NETWORK & RELATIONAL INFRASTRUCTURE (COMMUNITY)**\n  WHAT: Structural infrastructure co-usage anomaly detected.\n  WHY: `graph_community_shared_ip_ratio` is substantially elevated (Current: 1.0, Baseline Mean: 0.5269).\n  HOW MUCH: +2.1\u03c3 standard deviations above historical normal.\n  COMPARED TO WHAT: Historical T1/T2 normal population baseline.\n\n**SUPERVISED MODEL ATTRIBUTION (ACCOUNT)**\n  WHAT: Supervised model attributes strongest predictive weight to `acct_tx_count`.\n  WHY: Value = 0.2609 contributes a SHAP attribution value of -6.4747 to predicted fraud risk.\n  HOW MUCH: Top model feature (Rank 1 by local attribution magnitude).\n  COMPARED TO WHAT: Trained XGBoost supervised model background.\n\n**HISTORICAL GENOME DRIFT (OTHER)**\n  WHAT: Behavioral genome mutation relative to historical account reference.\n  WHY: `account_drift_score` exhibits higher than historical baseline.\n  HOW MUCH: +8.00\u03c3 standard Z-score shift (Current: 0.8053 vs Baseline: 0.1442).\n  COMPARED TO WHAT: Historical T1/T2 reference genome profile.\n\n> **Disclaimer**: SHAP values indicate model attribution, not causality. Relational anomaly and genome drift describe statistical abnormalities, not ground-truth fraud. Final decisioning combines all three layers.",
+    "case_study_type": "missed_t3_fraud"
+  },
+  "t3_normal": {
+    "account_id": "3293e810-8fb4-42d6-b5c3-11b967920cec",
+    "phase": "T3",
+    "is_fraud_ground_truth": false,
+    "risk_summary": {
+      "final_risk_score": 0.433218,
+      "risk_category": "LOW",
+      "policy_action": "ALLOW",
+      "decision_confidence": "NORMAL_BASELINE",
+      "threshold_used": 0.946558
+    },
+    "risk_components": {
+      "raw_signals": {
+        "supervised_prob": 0.000263,
+        "relational_anomaly_score": 0.280982,
+        "genome_drift_score": 0.964593
+      },
+      "cdf_percentiles": {
+        "supervised_prob_cdf": 0.0,
+        "relational_anomaly_cdf": 0.411734,
+        "genome_drift_cdf": 0.895079
+      },
+      "hybrid_weights": {
+        "supervised_weight": 0.3,
+        "relational_weight": 0.4,
+        "drift_weight": 0.3
+      },
+      "component_contributions": {
+        "supervised_risk_contribution": 0.0,
+        "relational_anomaly_contribution": 0.164694,
+        "genome_drift_contribution": 0.268524
+      },
+      "final_hybrid_risk_score": 0.433218
+    },
+    "top_shap_features": [
+      {
+        "feature": "acct_tx_count",
+        "gene_group": "Account",
+        "value": 0.1304,
+        "shap_value": -6.474699,
+        "abs_shap": 6.474699
+      },
+      {
+        "feature": "acct_tx_velocity",
+        "gene_group": "Account",
+        "value": 0.1304,
+        "shap_value": -1.254482,
+        "abs_shap": 1.254482
+      },
+      {
+        "feature": "tx_velocity",
+        "gene_group": "Transaction",
+        "value": 0.1304,
+        "shap_value": -0.222387,
+        "abs_shap": 0.222387
+      },
+      {
+        "feature": "graph_weighted_degree",
+        "gene_group": "Graph",
+        "value": 0.1304,
+        "shap_value": -0.100382,
+        "abs_shap": 0.100382
+      },
+      {
+        "feature": "acct_amount_total",
+        "gene_group": "Account",
+        "value": 0.1917,
+        "shap_value": -0.088428,
+        "abs_shap": 0.088428
+      },
+      {
+        "feature": "acct_active_days",
+        "gene_group": "Account",
+        "value": 0.2727,
+        "shap_value": -0.079223,
+        "abs_shap": 0.079223
+      },
+      {
+        "feature": "graph_degree",
+        "gene_group": "Graph",
+        "value": 0.3077,
+        "shap_value": -0.035016,
+        "abs_shap": 0.035016
+      },
+      {
+        "feature": "acct_amount_avg",
+        "gene_group": "Account",
+        "value": 0.6327,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      },
+      {
+        "feature": "acct_amount_std",
+        "gene_group": "Account",
+        "value": 0.6408,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      },
+      {
+        "feature": "acct_age_days",
+        "gene_group": "Account",
+        "value": 0.6768,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      }
+    ],
+    "relational_anomaly_signals": [
+      {
+        "feature": "merch_concentration",
+        "gene_group": "Merchant",
+        "current_value": 1.0,
+        "historical_mean": 0.6877,
+        "historical_std": 0.2713,
+        "positive_std_elevation": 1.1513
+      },
+      {
+        "feature": "net_shared_ip_count",
+        "gene_group": "Network",
+        "current_value": 0.4,
+        "historical_mean": 0.3029,
+        "historical_std": 0.1585,
+        "positive_std_elevation": 0.6127
+      },
+      {
+        "feature": "graph_connected_ips",
+        "gene_group": "Graph",
+        "current_value": 0.4,
+        "historical_mean": 0.3171,
+        "historical_std": 0.1556,
+        "positive_std_elevation": 0.5325
+      },
+      {
+        "feature": "graph_community_shared_ip_ratio",
+        "gene_group": "Community",
+        "current_value": 0.636,
+        "historical_mean": 0.5269,
+        "historical_std": 0.2284,
+        "positive_std_elevation": 0.4777
+      },
+      {
+        "feature": "net_shared_ip_ratio",
+        "gene_group": "Network",
+        "current_value": 1.0,
+        "historical_mean": 0.9212,
+        "historical_std": 0.2488,
+        "positive_std_elevation": 0.3167
+      }
+    ],
+    "genome_drift_breakdown": {
+      "gene_group_drift_scores": {
+        "device_drift_score": 0.6547,
+        "network_drift_score": 0.5745,
+        "merchant_drift_score": 0.7234,
+        "graph_drift_score": 0.9284,
+        "community_drift_score": 0.6755,
+        "transaction_drift_score": 0.3916,
+        "account_drift_score": 0.6241
+      },
+      "top_feature_deviations": [
+        {
+          "feature": "account_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.6241,
+          "historical_mean": 0.1442,
+          "historical_std": 0.0826,
+          "z_score": 5.81,
+          "abs_z_score": 5.81,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "graph_drift_score",
+          "gene_group": "Graph",
+          "current_value": 0.9284,
+          "historical_mean": 0.1704,
+          "historical_std": 0.141,
+          "z_score": 5.3761,
+          "abs_z_score": 5.3761,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "account_genome_drift",
+          "gene_group": "Other",
+          "current_value": 0.9646,
+          "historical_mean": 0.2188,
+          "historical_std": 0.158,
+          "z_score": 4.7199,
+          "abs_z_score": 4.7199,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "community_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.6755,
+          "historical_mean": 0.2017,
+          "historical_std": 0.1519,
+          "z_score": 3.1188,
+          "abs_z_score": 3.1188,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "behavioral_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.5599,
+          "historical_mean": 0.1874,
+          "historical_std": 0.1224,
+          "z_score": 3.0428,
+          "abs_z_score": 3.0428,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "relational_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.7536,
+          "historical_mean": 0.247,
+          "historical_std": 0.1718,
+          "z_score": 2.9493,
+          "abs_z_score": 2.9493,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "device_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.6547,
+          "historical_mean": 0.1762,
+          "historical_std": 0.1797,
+          "z_score": 2.6626,
+          "abs_z_score": 2.6626,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "merchant_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.7234,
+          "historical_mean": 0.3224,
+          "historical_std": 0.1704,
+          "z_score": 2.3535,
+          "abs_z_score": 2.3535,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "network_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.5745,
+          "historical_mean": 0.2131,
+          "historical_std": 0.1913,
+          "z_score": 1.8892,
+          "abs_z_score": 1.8892,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "acct_amount_std",
+          "gene_group": "Account",
+          "current_value": 0.6408,
+          "historical_mean": 0.3182,
+          "historical_std": 0.208,
+          "z_score": 1.5507,
+          "abs_z_score": 1.5507,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        }
+      ]
+    },
+    "human_readable_explanation": "## GenomeOfFraud Risk Explanation \u2014 Account 3293e810-8fb4-42d6-b5c3-11b967920cec\n\n**Risk Level:** LOW\n**Policy Action:** `ALLOW`\n**Final Risk Score:** 0.4332 (Decision Threshold: 0.9466)\n**Decision Signal Confidence:** NORMAL_BASELINE\n\n### Risk Components & Hybrid Layer Decomposition\n* **Supervised Risk Probability:** 0.0003 (CDF Percentile: 0.0000, Contribution: +0.0000)\n* **Relational Anomaly Score:** 0.2810 (CDF Percentile: 0.4117, Contribution: +0.1647)\n* **Account Genome Drift Score:** 0.9646 (CDF Percentile: 0.8951, Contribution: +0.2685)\n\n### Primary Evidence Summary\n\n**SUPERVISED MODEL ATTRIBUTION (ACCOUNT)**\n  WHAT: Supervised model attributes strongest predictive weight to `acct_tx_count`.\n  WHY: Value = 0.1304 contributes a SHAP attribution value of -6.4747 to predicted fraud risk.\n  HOW MUCH: Top model feature (Rank 1 by local attribution magnitude).\n  COMPARED TO WHAT: Trained XGBoost supervised model background.\n\n**HISTORICAL GENOME DRIFT (OTHER)**\n  WHAT: Behavioral genome mutation relative to historical account reference.\n  WHY: `account_drift_score` exhibits higher than historical baseline.\n  HOW MUCH: +5.81\u03c3 standard Z-score shift (Current: 0.6241 vs Baseline: 0.1442).\n  COMPARED TO WHAT: Historical T1/T2 reference genome profile.\n\n> **Disclaimer**: SHAP values indicate model attribution, not causality. Relational anomaly and genome drift describe statistical abnormalities, not ground-truth fraud. Final decisioning combines all three layers.",
+    "case_study_type": "t3_normal"
+  },
+  "false_positive": {
+    "account_id": "b43be182-9bb2-4581-95e9-491474acbfb2",
+    "phase": "T3",
+    "is_fraud_ground_truth": false,
+    "risk_summary": {
+      "final_risk_score": 0.971924,
+      "risk_category": "HIGH",
+      "policy_action": "STEP_UP_VERIFICATION",
+      "decision_confidence": "LOW_CONFIDENCE",
+      "threshold_used": 0.946558
+    },
+    "risk_components": {
+      "raw_signals": {
+        "supervised_prob": 0.000282,
+        "relational_anomaly_score": 0.971388,
+        "genome_drift_score": 1.876713
+      },
+      "cdf_percentiles": {
+        "supervised_prob_cdf": 0.989,
+        "relational_anomaly_cdf": 0.964092,
+        "genome_drift_cdf": 0.96529
+      },
+      "hybrid_weights": {
+        "supervised_weight": 0.3,
+        "relational_weight": 0.4,
+        "drift_weight": 0.3
+      },
+      "component_contributions": {
+        "supervised_risk_contribution": 0.2967,
+        "relational_anomaly_contribution": 0.385637,
+        "genome_drift_contribution": 0.289587
+      },
+      "final_hybrid_risk_score": 0.971924
+    },
+    "top_shap_features": [
+      {
+        "feature": "acct_tx_count",
+        "gene_group": "Account",
+        "value": 0.2609,
+        "shap_value": -6.474699,
+        "abs_shap": 6.474699
+      },
+      {
+        "feature": "acct_tx_velocity",
+        "gene_group": "Account",
+        "value": 0.2609,
+        "shap_value": -1.254482,
+        "abs_shap": 1.254482
+      },
+      {
+        "feature": "tx_velocity",
+        "gene_group": "Transaction",
+        "value": 0.2609,
+        "shap_value": -0.222387,
+        "abs_shap": 0.222387
+      },
+      {
+        "feature": "graph_weighted_degree",
+        "gene_group": "Graph",
+        "value": 0.2609,
+        "shap_value": -0.100382,
+        "abs_shap": 0.100382
+      },
+      {
+        "feature": "acct_amount_total",
+        "gene_group": "Account",
+        "value": 0.1977,
+        "shap_value": -0.088428,
+        "abs_shap": 0.088428
+      },
+      {
+        "feature": "acct_active_days",
+        "gene_group": "Account",
+        "value": 0.4545,
+        "shap_value": -0.079223,
+        "abs_shap": 0.079223
+      },
+      {
+        "feature": "graph_degree",
+        "gene_group": "Graph",
+        "value": 0.6923,
+        "shap_value": 0.035169,
+        "abs_shap": 0.035169
+      },
+      {
+        "feature": "acct_amount_avg",
+        "gene_group": "Account",
+        "value": 0.3263,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      },
+      {
+        "feature": "acct_amount_std",
+        "gene_group": "Account",
+        "value": 0.2891,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      },
+      {
+        "feature": "acct_age_days",
+        "gene_group": "Account",
+        "value": 0.8485,
+        "shap_value": 0.0,
+        "abs_shap": 0.0
+      }
+    ],
+    "relational_anomaly_signals": [
+      {
+        "feature": "graph_degree",
+        "gene_group": "Graph",
+        "current_value": 0.6923,
+        "historical_mean": 0.3846,
+        "historical_std": 0.1458,
+        "positive_std_elevation": 2.11
+      },
+      {
+        "feature": "graph_connected_merchants",
+        "gene_group": "Graph",
+        "current_value": 0.6667,
+        "historical_mean": 0.3223,
+        "historical_std": 0.1668,
+        "positive_std_elevation": 2.0647
+      },
+      {
+        "feature": "graph_community_shared_ip_ratio",
+        "gene_group": "Community",
+        "current_value": 0.9977,
+        "historical_mean": 0.5269,
+        "historical_std": 0.2284,
+        "positive_std_elevation": 2.061
+      },
+      {
+        "feature": "graph_proj_degree",
+        "gene_group": "Graph",
+        "current_value": 0.5705,
+        "historical_mean": 0.3243,
+        "historical_std": 0.1461,
+        "positive_std_elevation": 1.6854
+      },
+      {
+        "feature": "merch_max_accts_per_merchant",
+        "gene_group": "Merchant",
+        "current_value": 0.8065,
+        "historical_mean": 0.6888,
+        "historical_std": 0.1799,
+        "positive_std_elevation": 0.6538
+      }
+    ],
+    "genome_drift_breakdown": {
+      "gene_group_drift_scores": {
+        "device_drift_score": 0.9119,
+        "network_drift_score": 0.4464,
+        "merchant_drift_score": 1.2281,
+        "graph_drift_score": 2.4365,
+        "community_drift_score": 1.8484,
+        "transaction_drift_score": 0.7184,
+        "account_drift_score": 1.0049
+      },
+      "top_feature_deviations": [
+        {
+          "feature": "graph_drift_score",
+          "gene_group": "Graph",
+          "current_value": 2.4365,
+          "historical_mean": 0.1704,
+          "historical_std": 0.141,
+          "z_score": 16.0718,
+          "abs_z_score": 16.0718,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "community_drift_score",
+          "gene_group": "Other",
+          "current_value": 1.8484,
+          "historical_mean": 0.2017,
+          "historical_std": 0.1519,
+          "z_score": 10.8395,
+          "abs_z_score": 10.8395,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "account_genome_drift",
+          "gene_group": "Other",
+          "current_value": 1.8767,
+          "historical_mean": 0.2188,
+          "historical_std": 0.158,
+          "z_score": 10.4928,
+          "abs_z_score": 10.4928,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "account_drift_score",
+          "gene_group": "Other",
+          "current_value": 1.0049,
+          "historical_mean": 0.1442,
+          "historical_std": 0.0826,
+          "z_score": 10.4189,
+          "abs_z_score": 10.4189,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "relational_drift_score",
+          "gene_group": "Other",
+          "current_value": 1.5649,
+          "historical_mean": 0.247,
+          "historical_std": 0.1718,
+          "z_score": 7.6724,
+          "abs_z_score": 7.6724,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "behavioral_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.8842,
+          "historical_mean": 0.1874,
+          "historical_std": 0.1224,
+          "z_score": 5.6922,
+          "abs_z_score": 5.6922,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "merchant_drift_score",
+          "gene_group": "Other",
+          "current_value": 1.2281,
+          "historical_mean": 0.3224,
+          "historical_std": 0.1704,
+          "z_score": 5.316,
+          "abs_z_score": 5.316,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "device_drift_score",
+          "gene_group": "Other",
+          "current_value": 0.9119,
+          "historical_mean": 0.1762,
+          "historical_std": 0.1797,
+          "z_score": 4.0938,
+          "abs_z_score": 4.0938,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "behavioral_shift_score",
+          "gene_group": "Other",
+          "current_value": 0.7826,
+          "historical_mean": 0.2497,
+          "historical_std": 0.1926,
+          "z_score": 2.7661,
+          "abs_z_score": 2.7661,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        },
+        {
+          "feature": "graph_community_size",
+          "gene_group": "Community",
+          "current_value": 1.0,
+          "historical_mean": 0.4826,
+          "historical_std": 0.1927,
+          "z_score": 2.6849,
+          "abs_z_score": 2.6849,
+          "direction": "HIGHER THAN HISTORICAL BASELINE"
+        }
+      ]
+    },
+    "human_readable_explanation": "## GenomeOfFraud Risk Explanation \u2014 Account b43be182-9bb2-4581-95e9-491474acbfb2\n\n**Risk Level:** HIGH\n**Policy Action:** `STEP_UP_VERIFICATION`\n**Final Risk Score:** 0.9719 (Decision Threshold: 0.9466)\n**Decision Signal Confidence:** LOW_CONFIDENCE\n\n### Risk Components & Hybrid Layer Decomposition\n* **Supervised Risk Probability:** 0.0003 (CDF Percentile: 0.9890, Contribution: +0.2967)\n* **Relational Anomaly Score:** 0.9714 (CDF Percentile: 0.9641, Contribution: +0.3856)\n* **Account Genome Drift Score:** 1.8767 (CDF Percentile: 0.9653, Contribution: +0.2896)\n\n### Primary Evidence Summary\n\n**NETWORK & RELATIONAL INFRASTRUCTURE (GRAPH)**\n  WHAT: Structural infrastructure co-usage anomaly detected.\n  WHY: `graph_degree` is substantially elevated (Current: 0.6923, Baseline Mean: 0.3846).\n  HOW MUCH: +2.1\u03c3 standard deviations above historical normal.\n  COMPARED TO WHAT: Historical T1/T2 normal population baseline.\n\n**SUPERVISED MODEL ATTRIBUTION (ACCOUNT)**\n  WHAT: Supervised model attributes strongest predictive weight to `acct_tx_count`.\n  WHY: Value = 0.2609 contributes a SHAP attribution value of -6.4747 to predicted fraud risk.\n  HOW MUCH: Top model feature (Rank 1 by local attribution magnitude).\n  COMPARED TO WHAT: Trained XGBoost supervised model background.\n\n**HISTORICAL GENOME DRIFT (GRAPH)**\n  WHAT: Behavioral genome mutation relative to historical account reference.\n  WHY: `graph_drift_score` exhibits higher than historical baseline.\n  HOW MUCH: +16.07\u03c3 standard Z-score shift (Current: 2.4365 vs Baseline: 0.1704).\n  COMPARED TO WHAT: Historical T1/T2 reference genome profile.\n\n> **Disclaimer**: SHAP values indicate model attribution, not causality. Relational anomaly and genome drift describe statistical abnormalities, not ground-truth fraud. Final decisioning combines all three layers.",
+    "case_study_type": "false_positive"
+  }
+}

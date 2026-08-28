@@ -29,7 +29,8 @@ GenomeOfFraud/
 │   ├── community.py       # Projection graph generator & Louvain community detector
 │   ├── features.py        # Behavioral gene extraction & global normalization
 │   ├── genome_drift.py    # Historical reference engine, ECDF calibration, & policy layer
-│   └── model.py           # Leakage-safe model trainer, out-of-time ablation, & alert evaluator
+│   ├── model.py           # Leakage-safe model trainer, out-of-time ablation, & alert evaluator
+│   └── xai.py             # SHAP, gene group attribution, hybrid decomposition, & human-readable XAI
 ├── .gitignore             # Git ignore configuration
 ├── requirements.txt       # Python dependencies
 └── README.md              # Project documentation
@@ -46,55 +47,51 @@ GenomeOfFraud/
 [██████████] FraudGenome model  
 [██████████] Genome drift  
 [██████████] Decision layer & Frozen Calibration  
-[██████████] SHAP  
+[██████████] SHAP & Explainable AI (XAI)  
 [██████████] Streamlit  
 
 ---
 
-## Architecture: Causal Historical Reference & Frozen Risk Calibration
+## Explainable AI (XAI) Architecture
 
 ```
-       Historical T1/T2 Normal Population
-                      │
-                      ▼
-        Empirical CDF & Quantiles Fit
-       (data/risk_calibration_t1_t2.json)
-                      │
-        ┌─────────────┴─────────────┐
-        ▼                           ▼
-Supervised Prob        Relational Anomaly / Drift
- (Calibrated)            (Empirical Percentile)
-        │                           │
-        └─────────────┬─────────────┘
-                      ▼
-              Hybrid Risk Score
-       (Frozen Historical Weights)
-                      │
-                      ▼
-          Cost-Sensitive Decision Policy
-     (p90 Allow | p95 Challenge | p99 Block)
-                      │
-                      ▼
-         Precision@K & Alert-Budget Evaluation
+             Final Risk Score
+                    │
+         ┌──────────┼──────────┐
+         ▼          ▼          ▼
+     Supervised  Relational   Genome
+       Risk       Anomaly      Drift
+         │          │          │
+         ▼          ▼          ▼
+       SHAP      Historical   Historical
+     (Tree)     Deviation    Deviation
+         │          │          │
+         └──────────┼──────────┘
+                    ▼
+          Human Evidence Summary
+                    │
+                    ▼
+             Policy Decision
 ```
 
-### Concept & Core Objectives
+### Multilayer Explanation Taxonomy
 
-Genome drift occurs when fraud syndicates intentionally alter their operational surface tactics between time periods to evade traditional rule engines and supervised models.
+GenomeOfFraud answers **WHY** an account was assigned a specific risk level across six explanation layers:
 
-The framework decomposes the fraud representation into two structural levels:
-* **Level A: Individual Behavioral Genes**: Account velocity, device usage counts, transaction amounts, individual IP/merchant interaction frequencies. (Highly volatile during mutation)
-* **Level B: Relational Genome**: Relational topology across shared entity infrastructure (`account ↔ IP`, `account ↔ merchant`, graph projection degree, community density). (Relatively stable during mutation)
+1. **Supervised Model Attribution**: Quantifies predictive feature contributions to supervised probability using `shap.TreeExplainer`.
+2. **Behavioral Gene-Group Attribution**: Aggregates SHAP contributions across seven gene categories (*Account*, *Device*, *Network*, *Merchant*, *Transaction*, *Graph*, *Community*).
+3. **Relational Anomaly Explanation**: Decomposes infrastructure sharing score into constituent $+Z\sigma$ standardized elevations above historical baselines.
+4. **Account Genome Drift Explanation**: Details individual feature and gene-group $Z$-score shifts relative to historical account reference profiles.
+5. **Hybrid Risk Component Decomposition**: Decomposes final risk score into exact additive percentile contributions:
+   $$\text{Risk}_{\text{final}} = w_1 \cdot \text{CDF}(\text{Supervised}) + w_2 \cdot \text{CDF}(\text{Relational}) + w_3 \cdot \text{CDF}(\text{Drift})$$
+6. **Policy Decision Explanation**: Maps final hybrid risk score to cost-sensitive categories (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) and actions (`ALLOW`, `MONITOR_SOFT_CHALLENGE`, `STEP_UP_VERIFICATION`, `BLOCK_MANUAL_REVIEW`).
 
-### Temporal Reference & Calibration Policy
+### Critical Scientific Disclaimers
 
-To prevent future lookahead leakage ($T_1+T_2 \rightarrow T_3$):
-* **Phase $T_1$ Reference**: Population baseline constructed from $T_1$.
-* **Phase $T_2$ Reference**: Population baseline constructed strictly from $T_1$.
-* **Phase $T_3$ Reference**: Population baseline constructed strictly from $T_1 + T_2$.
-* **Frozen Calibration Profile**: Empirical CDF quantiles ($1000$ points) for supervised probability, relational anomaly, and genome drift scores are fit strictly on $T_1+T_2$ normal data and exported to `data/risk_calibration_t1_t2.json`.
-
-All references and calibration artifacts are saved to disk and unit-tested for 100% byte-for-byte immutability against future data corruption.
+* **SHAP $\neq$ Causality**: SHAP values describe statistical model feature attribution. They do NOT prove causal relationship or ground-truth intent.
+* **SHAP $\neq$ Fraud Probability**: SHAP values represent log-odds margins or probability contributions to model output, not absolute fraud likelihood.
+* **Genome Drift $\neq$ Fraud**: Statistical deviation from historical baseline describes behavioral shift. Legitimate user behavior may drift without representing fraud.
+* **Relational Anomaly $\neq$ Fraud**: Infrastructure sharing (e.g. public Wi-Fi or multi-user device) indicates structural abnormality, not definitive malicious activity.
 
 ---
 
@@ -195,7 +192,7 @@ pip install -r requirements.txt
 
 ### 2. Run End-to-End Pipeline
 
-To execute the complete pipeline and temporal unit tests:
+To execute the complete pipeline, XAI engine, and unit tests:
 
 ```bash
 python3 src/generate_data.py
@@ -204,4 +201,5 @@ python3 src/community.py
 python3 src/features.py
 python3 src/genome_drift.py
 python3 src/model.py
+python3 src/xai.py
 ```

@@ -1,0 +1,9 @@
+Gene Group,Mean Absolute SHAP,Relative Importance
+Account,7.896736,0.956656
+Transaction,0.222379,0.02694
+Graph,0.135408,0.016404
+Device,0.0,0.0
+Network,0.0,0.0
+Merchant,0.0,0.0
+Community,0.0,0.0
+Other,0.0,0.0
