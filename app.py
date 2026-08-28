@@ -23,6 +23,7 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 import networkx as nx
+import shap
 
 # Add src to python path for module imports
 src_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src")
@@ -250,7 +251,7 @@ def main():
     if mode == "🔍 Account Investigation":
         render_account_investigation(
             selected_acct_id, selected_phase, current_df, df_full,
-            reference_t1_t2, calibration_profile, model, graphs, global_imp_df, group_imp_df
+            reference_t1_t2, calibration_profile, model, graphs, global_imp_df, group_imp_df, data_dir
         )
 
     # -----------------------------------------------------------------------
@@ -278,7 +279,7 @@ def main():
 
 def render_account_investigation(
     acct_id, phase, current_df, df_full,
-    reference_dict, calib_profile, model, graphs, global_imp_df, group_imp_df
+    reference_dict, calib_profile, model, graphs, global_imp_df, group_imp_df, data_dir
 ):
     """Render comprehensive evidence-driven account investigation workspace."""
     account_row = current_df[current_df["account_id"] == acct_id].iloc[0]
@@ -290,7 +291,15 @@ def render_account_investigation(
     # Compute risk components & policy decision using frozen calibration profile
     winning_weights = (0.3, 0.4, 0.3)
 
-    feature_cols = [c for c in MUTATION_AWARE_FEATURES if c in current_df.columns]
+    # Dynamically match feature columns to model feature count
+    if model is not None and hasattr(model, "n_features_in_"):
+        if model.n_features_in_ == len(FRAUDGENOME_FEATURES):
+            feature_cols = [c for c in FRAUDGENOME_FEATURES if c in current_df.columns]
+        else:
+            feature_cols = [c for c in MUTATION_AWARE_FEATURES if c in current_df.columns]
+    else:
+        feature_cols = [c for c in FRAUDGENOME_FEATURES if c in current_df.columns]
+
     audit_xai_feature_matrix(feature_cols)
 
     X_vec = account_row[feature_cols].values.astype(float).reshape(1, -1)

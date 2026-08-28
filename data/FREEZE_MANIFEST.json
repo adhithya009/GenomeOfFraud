@@ -1,0 +1,63 @@
+{
+  "project": "GenomeOfFraud",
+  "milestone": "Hackathon Final Hardening & Code Freeze",
+  "freeze_timestamp_utc": "2026-08-28T14:15:00Z",
+  "artifacts": {
+    "genome_full.csv": {
+      "sha256": "468294f04ea9bd7f9d723c5e370fd84e7856aa2b27c6f698c59d6b001e97537c",
+      "size_bytes": 5679622
+    },
+    "genome_t1.csv": {
+      "sha256": "b4db72e19af6cf5cfd365a119487b1150d9692f3e52dfb4154fad3b62ba13f1e",
+      "size_bytes": 1887339
+    },
+    "genome_t2.csv": {
+      "sha256": "3078d80480c3ab7a86e77d2c1fb1022442c466a0e29c8158caf09bcc61f588a0",
+      "size_bytes": 1904893
+    },
+    "genome_t3.csv": {
+      "sha256": "0df519eea99c61cd9b55b8780e903bbd214913c5dce33f1b9257e18fa729919d",
+      "size_bytes": 1890102
+    },
+    "model_results.json": {
+      "sha256": "161e65f455e194ee51819e1345c7a0a96f066e640068f75fa4f4ba19ef471fb2",
+      "size_bytes": 12570
+    },
+    "risk_calibration_t1_t2.json": {
+      "sha256": "2861a490852d03d49730e0fcc02086806cb2c90217914c226ff4129c4d369bb4",
+      "size_bytes": 73596
+    },
+    "genome_reference_t1_t2.json": {
+      "sha256": "05fad6812ff0d1b0e1e646229cafb2b3c1cb7187646be5c733093c0e93b7400d",
+      "size_bytes": 15371
+    },
+    "xai_case_studies.json": {
+      "sha256": "8f89044f1902afda1eb28683638859c71fcb0920568d6d3e61f80c14991b5eef",
+      "size_bytes": 38217
+    },
+    "genome_drift_summary.json": {
+      "sha256": "9ba5c7dafc38c94ea8257101ccbbf0f0ccde3e624f3282d4621149fb36f1522c",
+      "size_bytes": 2838
+    },
+    "xai_global_importance.csv": {
+      "sha256": "2b5e31183784428c7c837faa4880867c82a67398473a271d30b2a353e53fa2f3",
+      "size_bytes": 2153
+    },
+    "xai_gene_group_importance.csv": {
+      "sha256": "2de8e59eafc81961606323cdc9721d9432810b88964d4466d083670de68b4276",
+      "size_bytes": 209
+    },
+    "graph_t1.pkl": {
+      "sha256": "49d56a44402d4a9180d687a1e0c7e128e27822fedbe0cc07e20b6c3aa7100a92",
+      "size_bytes": 2744762
+    },
+    "graph_t2.pkl": {
+      "sha256": "2e96c9d1648c12f8a389bd68ca9179ce11f2c184fb975d103d093556e0558874",
+      "size_bytes": 2776707
+    },
+    "graph_t3.pkl": {
+      "sha256": "7b4b986beae63006755912e3b2a00d95be51e480e49d3947cb69ee06654471d8",
+      "size_bytes": 2774858
+    }
+  }
+}
