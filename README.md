@@ -190,9 +190,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Run End-to-End Pipeline
+### 2. Run End-to-End Pipeline & Validation
 
-To execute the complete pipeline, XAI engine, and unit tests:
+To execute the complete pipeline, XAI engine, and validation suites:
 
 ```bash
 python3 src/generate_data.py
@@ -202,4 +202,29 @@ python3 src/features.py
 python3 src/genome_drift.py
 python3 src/model.py
 python3 src/xai.py
+python3 src/validate_streamlit.py
 ```
+
+### 3. Launch Streamlit Investigation Platform
+
+To launch the interactive fraud investigation dashboard:
+
+```bash
+streamlit run app.py
+```
+
+---
+
+## Interactive Streamlit Dashboard Pages
+
+1. **🔍 Account Investigation**:
+   - **Risk Overview**: Risk Score, Category (`CRITICAL` / `HIGH` / `MEDIUM` / `LOW`), Policy Action (`BLOCK_MANUAL_REVIEW` / `STEP_UP_VERIFICATION` / etc.), Decision Confidence.
+   - **Risk Component Breakdown**: Exact hybrid risk component decomposition ($30\%\ \text{Supervised} + 40\%\ \text{Relational} + 30\%\ \text{Drift} = R_{\text{final}}$).
+   - **Relational Network Subgraph**: Interactive sub-graph rendering 1-hop and 2-hop entity relationships (`Account ↔ Device ↔ IP ↔ Merchant`).
+   - **Fraud Genome & Historical Drift**: $Z$-score mutation analysis comparing $T_3$ behavior to historical $T_1/T_2$ baselines.
+   - **SHAP Attribution & Evidence Synthesis**: Local SHAP feature bar chart, global SHAP plots, and dynamic human-readable evidence summaries.
+2. **📊 Model Overview & Benchmarks**: Out-of-time $T_3$ benchmark evaluation tables (Exp A–G), Precision@K, and Alert-Budget review capacity analysis.
+3. **🧬 Population Mutation Analysis**: Offline population-level $T_2 \rightarrow T_3$ distribution drift rankings and diagnostic mutation signals.
+4. **💡 Case Studies Demonstration**: Guided presentation mode for hackathon review featuring detected $T_3$ fraud, missed $T_3$ fraud, normal accounts, and false positives.
+
+*Hackathon Presentation Guide*: See [docs/demo_walkthrough.md](file:///home/scar/GenomeOfFraud/docs/demo_walkthrough.md) for a 3–5 minute judge demonstration script.
