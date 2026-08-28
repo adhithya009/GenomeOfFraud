@@ -62,7 +62,7 @@ from src.xai import (
 
 st.set_page_config(
     page_title="GenomeOfFraud — Fraud Intelligence Platform",
-    page_icon="🧬",
+    page_icon=":material/genetics:",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -190,17 +190,17 @@ def main():
     # -----------------------------------------------------------------------
     # Sidebar Navigation & Controls
     # -----------------------------------------------------------------------
-    st.sidebar.markdown("## 🧬 **GenomeOfFraud**")
+    st.sidebar.markdown("## :material/genetics: **GenomeOfFraud**")
     st.sidebar.markdown("*Fraud Intelligence & XAI Platform*")
     st.sidebar.markdown("---")
 
     mode = st.sidebar.radio(
         "Navigation Mode",
         options=[
-            "🔍 Account Investigation",
-            "📊 Model Overview & Benchmarks",
-            "🧬 Population Mutation Analysis",
-            "💡 Case Studies Demonstration",
+            ":material/search: Account Investigation",
+            ":material/bar_chart: Model Overview & Benchmarks",
+            ":material/genetics: Population Mutation Analysis",
+            ":material/lightbulb: Case Studies Demonstration",
         ],
         index=0,
     )
@@ -220,7 +220,7 @@ def main():
 
     # Account Selector for Account Investigation Mode
     selected_acct_id = None
-    if mode == "🔍 Account Investigation":
+    if mode == ":material/search: Account Investigation":
         st.sidebar.markdown("### Account Selection")
 
         # Allow quick filtering by risk/fraud status for easy navigation
@@ -243,12 +243,12 @@ def main():
         st.sidebar.caption(f"Total Accounts in {selected_phase}: {len(acct_ids)}")
 
     st.sidebar.markdown("---")
-    st.sidebar.info("💡 **Razorpay Hackathon Demo**: GenomeOfFraud demonstrates how relational graph topology and historical drift catch mutated fraud ($T_3$) when supervised model probabilities drop.")
+    st.sidebar.info(":material/lightbulb: **Razorpay Hackathon Demo**: GenomeOfFraud demonstrates how relational graph topology and historical drift catch mutated fraud ($T_3$) when supervised model probabilities drop.")
 
     # -----------------------------------------------------------------------
     # PAGE 1: ACCOUNT INVESTIGATION MODE
     # -----------------------------------------------------------------------
-    if mode == "🔍 Account Investigation":
+    if mode == ":material/search: Account Investigation":
         render_account_investigation(
             selected_acct_id, selected_phase, current_df, df_full,
             reference_t1_t2, calibration_profile, model, graphs, global_imp_df, group_imp_df, data_dir
@@ -257,19 +257,19 @@ def main():
     # -----------------------------------------------------------------------
     # PAGE 2: MODEL OVERVIEW & BENCHMARKS
     # -----------------------------------------------------------------------
-    elif mode == "📊 Model Overview & Benchmarks":
+    elif mode == ":material/bar_chart: Model Overview & Benchmarks":
         render_model_overview(model_results, global_imp_df, group_imp_df)
 
     # -----------------------------------------------------------------------
     # PAGE 3: POPULATION MUTATION ANALYSIS
     # -----------------------------------------------------------------------
-    elif mode == "🧬 Population Mutation Analysis":
+    elif mode == ":material/genetics: Population Mutation Analysis":
         render_population_mutation_analysis(drift_summary, df_t2, df_t3)
 
     # -----------------------------------------------------------------------
     # PAGE 4: CASE STUDIES DEMONSTRATION
     # -----------------------------------------------------------------------
-    elif mode == "💡 Case Studies Demonstration":
+    elif mode == ":material/lightbulb: Case Studies Demonstration":
         render_case_studies(case_studies)
 
 
@@ -284,7 +284,7 @@ def render_account_investigation(
     """Render comprehensive evidence-driven account investigation workspace."""
     account_row = current_df[current_df["account_id"] == acct_id].iloc[0]
 
-    st.markdown(f"# 🔍 Account Investigation — `{acct_id}`")
+    st.markdown(f"# :material/search: Account Investigation — `{acct_id}`")
     st.caption(f"Phase: **{phase}** | Account Age: **{account_row.get('acct_age_days', 0):.0f} days** | KYC Status: **{'Unverified' if account_row.get('acct_kyc_unverified', 0) > 0.5 else 'Verified'}**")
     st.markdown("---")
 
@@ -370,14 +370,14 @@ def render_account_investigation(
             delta=f"Threshold Cutoff: {policy_res['selected_threshold']:.4f}",
         )
 
-    st.info("ℹ️ **Scientific Note**: The hybrid risk score represents a calibrated operational policy indicator relative to historical normal percentiles ($T_1/T_2$), NOT an uncalibrated raw fraud probability.")
+    st.info(":material/info: **Scientific Note**: The hybrid risk score represents a calibrated operational policy indicator relative to historical normal percentiles ($T_1/T_2$), NOT an uncalibrated raw fraud probability.")
 
     st.markdown("---")
 
     # -----------------------------------------------------------------------
     # SECTION 3: RELATIONAL GENOME & TOPOLOGY SUBGRAPH
     # -----------------------------------------------------------------------
-    t_rel1, t_rel2 = st.tabs(["🌐 Relational Network Graph", "📊 Infrastructure Sharing Signals"])
+    t_rel1, t_rel2 = st.tabs([":material/hub: Relational Network Graph", ":material/analytics: Infrastructure Sharing Signals"])
 
     with t_rel1:
         st.markdown("### Relational Subgraph Topology")
@@ -436,7 +436,7 @@ def render_account_investigation(
                 st.pyplot(fig)
                 plt.close()
 
-                st.caption("🔴 Target Account | 🔵 Co-connected Accounts | 🟠 Devices | 🟢 IPs | 🟣 Merchants")
+                st.caption(":material/hub: **Graph Legend**: <span style='color:#d62728;'>● Target Account</span> | <span style='color:#1f77b4;'>● Co-connected Accounts</span> | <span style='color:#ff7f0e;'>● Devices</span> | <span style='color:#2ca02c;'>● IPs</span> | <span style='color:#9467bd;'>● Merchants</span>", unsafe_allow_html=True)
             else:
                 st.warning(f"Account `{acct_node_id}` not found in phase {phase} graph pickle.")
         else:
@@ -459,7 +459,7 @@ def render_account_investigation(
 
         top_elevated = [r for r in rel_signals if r["positive_std_elevation"] > 1.5]
         if top_elevated:
-            st.warning(f"⚠️ **High Infrastructure Co-Usage Elevation**: `{top_elevated[0]['feature']}` is **+{top_elevated[0]['positive_std_elevation']:.1f}σ** above historical baseline.")
+            st.warning(f":material/warning: **High Infrastructure Co-Usage Elevation**: `{top_elevated[0]['feature']}` is **+{top_elevated[0]['positive_std_elevation']:.1f}σ** above historical baseline.")
 
     st.markdown("---")
 
@@ -548,7 +548,7 @@ def render_account_investigation(
         if os.path.exists(gene_img):
             st.image(gene_img, caption="Relative Importance by Fraud Genome Gene Group")
 
-    st.warning("🔬 **Supervised Model Vulnerability Insight**: Global SHAP analysis confirms that the supervised XGBoost model relies heavily (~95.6%) on surface Account velocity and transaction count features. When fraud syndicates mutate surface transaction counts in $T_3$, supervised probability drops from 0.99 to <0.01. GenomeOfFraud overcomes this vulnerability by incorporating Relational Anomaly (+0.399) and Genome Drift (+0.300) layers into the final decision.")
+    st.warning(":material/insights: **Supervised Model Vulnerability Insight**: Global SHAP analysis confirms that the supervised XGBoost model relies heavily (~95.6%) on surface Account velocity and transaction count features. When fraud syndicates mutate surface transaction counts in $T_3$, supervised probability drops from 0.99 to <0.01. GenomeOfFraud overcomes this vulnerability by incorporating Relational Anomaly (+0.399) and Genome Drift (+0.300) layers into the final decision.")
 
     st.markdown("---")
 
@@ -576,7 +576,7 @@ def render_account_investigation(
 
 def render_model_overview(model_results, global_imp_df, group_imp_df):
     """Render comprehensive model benchmarks, ablation study, and alert capacity analysis."""
-    st.markdown("# 📊 Model Overview & Out-of-Time Benchmarks")
+    st.markdown("# :material/bar_chart: Model Overview & Out-of-Time Benchmarks")
     st.caption("Out-of-Time Temporal Evaluation ($T_1+T_2 \\rightarrow T_3$) under Tactic Mutation")
     st.markdown("---")
 
@@ -643,7 +643,7 @@ def render_model_overview(model_results, global_imp_df, group_imp_df):
 
 def render_population_mutation_analysis(drift_summary, df_t2, df_t3):
     """Render population-level T2 -> T3 genome mutation analysis."""
-    st.markdown("# 🧬 Population Genome Mutation Analysis ($T_2 \\rightarrow T_3$)")
+    st.markdown("# :material/genetics: Population Genome Mutation Analysis ($T_2 \\rightarrow T_3$)")
     st.caption("Offline population-level distribution drift summary measuring syndicate tactic shifts.")
     st.markdown("---")
 
@@ -672,26 +672,26 @@ def render_population_mutation_analysis(drift_summary, df_t2, df_t3):
 
 def render_case_studies(case_studies):
     """Render guided demonstration case studies for hackathon review."""
-    st.markdown("# 💡 Hackathon Case Studies Demonstration Mode")
+    st.markdown("# :material/lightbulb: Hackathon Case Studies Demonstration Mode")
     st.caption("Guided walkthrough comparing detected fraud, missed fraud, normal activity, and false positives under $T_3$ mutation.")
     st.markdown("---")
 
     case_choice = st.radio(
         "Select Demonstration Case Study",
         options=[
-            "🎯 Detected T3 Fraud (Correctly Flagged)",
-            "⚠️ Missed T3 Fraud (Model Evasion / Surface Mutation)",
-            "🟢 T3 Normal Account (Correctly Allowed)",
-            "🟡 False Positive Account (Flagged Normal)",
+            ":material/check_circle: Detected T3 Fraud (Correctly Flagged)",
+            ":material/error: Missed T3 Fraud (Model Evasion / Surface Mutation)",
+            ":material/verified_user: T3 Normal Account (Correctly Allowed)",
+            ":material/warning: False Positive Account (Flagged Normal)",
         ],
         index=0,
     )
 
     key_map = {
-        "🎯 Detected T3 Fraud (Correctly Flagged)": "detected_t3_fraud",
-        "⚠️ Missed T3 Fraud (Model Evasion / Surface Mutation)": "missed_t3_fraud",
-        "🟢 T3 Normal Account (Correctly Allowed)": "t3_normal",
-        "🟡 False Positive Account (Flagged Normal)": "false_positive",
+        ":material/check_circle: Detected T3 Fraud (Correctly Flagged)": "detected_t3_fraud",
+        ":material/error: Missed T3 Fraud (Model Evasion / Surface Mutation)": "missed_t3_fraud",
+        ":material/verified_user: T3 Normal Account (Correctly Allowed)": "t3_normal",
+        ":material/warning: False Positive Account (Flagged Normal)": "false_positive",
     }
 
     selected_key = key_map[case_choice]
@@ -714,7 +714,7 @@ def render_case_studies(case_studies):
     st.markdown("---")
 
     if selected_key == "missed_t3_fraud":
-        st.error("⚠️ **Scientific Transparency**: This account represents a ground-truth fraud account missed by the policy threshold ($R_{\\text{final}} < p_{97.5}$). Under $T_3$, the syndicate mutated device fingerprints and transaction counts, causing supervised probability to fall below 0.01. GenomeOfFraud keeps missed fraud cases visible to analyze structural limitations.")
+        st.error(":material/report_problem: **Scientific Transparency**: This account represents a ground-truth fraud account missed by the policy threshold ($R_{\\text{final}} < p_{97.5}$). Under $T_3$, the syndicate mutated device fingerprints and transaction counts, causing supervised probability to fall below 0.01. GenomeOfFraud keeps missed fraud cases visible to analyze structural limitations.")
 
     st.markdown("### Human-Readable Evidence Narrative")
     st.markdown(case_data.get("human_readable_explanation", "No explanation text available."))
